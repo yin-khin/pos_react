@@ -56,7 +56,8 @@
 import axios from 'axios';
 
 // 1. Set the base URL for your API
-const baseURL = "http://localhost:3000";
+// const baseURL = "http://localhost:3000";
+const baseURL = import.meta.env.VITE_BASE_URL || "http://localhost:3000";
 
 /**
  * Standardized request helper

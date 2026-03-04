@@ -57,8 +57,8 @@ const fetchBrands = async () => {
   setLoading(true);
   try {
     const response = await request("/api/brands", "GET");
-    if (response.message === "success get brands") {
-      setBrands(response.brand); // ✅ "brand" not "brands"
+    if (response.success && response.brand) {
+      setBrands(response.brand);
     }
   } catch (error) {
     console.error("Error fetching brands:", error);
@@ -94,7 +94,7 @@ const fetchBrands = async () => {
   if (result.isConfirmed) {
     try {
       const response = await request(`/api/brands/${code}`, "DELETE");
-      if (response.message) {  // ✅ check message instead
+      if (response.success) {
         showAlert("success", "Brand deleted successfully");
         fetchBrands();
       } else {
@@ -126,12 +126,12 @@ const handleFormSubmit = async (e) => {
       response = await request("/api/brands", "POST", formData);
     }
 
-    if (response.message) {  // ✅ check message instead of success
+    if (response.success) {
       showAlert("success", editingCode ? "Brand updated successfully" : "Brand created successfully");
       setShowForm(false);
       fetchBrands();
     } else {
-      showAlert("error", "Error saving brand");
+      showAlert("error", response.message || "Error saving brand");
     }
   } catch (error) {
     console.error("Error saving brand:", error);

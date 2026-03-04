@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "../style/Sidebar.css";
 
@@ -25,8 +25,8 @@ const Sidebar = () => {
       label: "💳 Point Of Sale",
       path: "/sales",
       submenu: [
-        { id: "new-sale", label: "New Sale", path: "/sales/new" },
-        { id: "sales-list", label: "Sales History", path: "/sales" },
+        { id: "newsale", label: "New Sale", path: "/sales/new" },
+        { id: "saleslist", label: "Sales History", path: "/sales" },
       ],
     },
     { id: "customers", label: "👥 Customer", path: "/customers" },
@@ -49,9 +49,20 @@ const Sidebar = () => {
       ],
     },
     {
-      id: "setting",
-      label: "📈 Setting",
-      path: "/Setting",
+      id: "settings",
+      label: "⚙️ Settings",
+      path: "/settings",
+      submenu: [
+        { id: "app-settings", label: "App Settings", path: "/settings" },
+        { id: "payment-methods", label: "Payment Methods", path: "/payment-methods" },
+        { id: "store-info", label: "Store Information", path: "/store-info" },
+        { id: "telegram", label: "Telegram Config", path: "/telegram" },
+      ],
+    },
+    {
+      id:"frontend",
+      label:"🌐 Frontend",
+      path:"/frontend"
     },
   ];
 

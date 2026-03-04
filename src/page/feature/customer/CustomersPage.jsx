@@ -63,13 +63,10 @@ const CustomerPage = () => {
       const response = await request("/api/customers", "GET");
       console.log("Customers API response:", response);
 
-      // Handle array response directly OR object with success property
-      if (Array.isArray(response)) {
+      if (response.success && response.customers) {
+        setCustomers(response.customers);
+      } else if (Array.isArray(response)) {
         setCustomers(response);
-      } else if (response.customer || response.customers || response.data) {
-        const customerData =
-          response.customer || response.customers || response.data || [];
-        setCustomers(Array.isArray(customerData) ? customerData : []);
       } else {
         console.error("Unexpected response format:", response);
         showAlert("error", "Unexpected response format");

@@ -74,12 +74,10 @@ const ProductPage = () => {
       const response = await request("/api/products", "GET");
       console.log("Products API response:", response);
 
-      if (Array.isArray(response)) {
+      if (response.success && response.products) {
+        setProducts(response.products);
+      } else if (Array.isArray(response)) {
         setProducts(response);
-      } else if (response.product || response.products || response.data) {
-        const productData =
-          response.product || response.products || response.data || [];
-        setProducts(Array.isArray(productData) ? productData : []);
       } else {
         console.error("Unexpected response format:", response);
         showAlert("error", "Unexpected response format");
@@ -99,12 +97,10 @@ const ProductPage = () => {
       const response = await request("/api/categories", "GET");
       console.log("Categories API response:", response);
 
-      if (Array.isArray(response)) {
+      if (response.success && response.category) {
+        setCategories(response.category);
+      } else if (Array.isArray(response)) {
         setCategories(response);
-      } else if (response.category || response.categories || response.data) {
-        const categoryData =
-          response.category || response.categories || response.data || [];
-        setCategories(Array.isArray(categoryData) ? categoryData : []);
       } else {
         console.error("Unexpected categories response:", response);
         setCategories([]);
@@ -120,15 +116,12 @@ const ProductPage = () => {
       const response = await request("/api/brands", "GET");
       console.log("Brands API response:", response);
 
-      if (Array.isArray(response)) {
+      if (response.success && response.brand) {
+        setBrands(response.brand);
+        setAllBrands(response.brand);
+      } else if (Array.isArray(response)) {
         setBrands(response);
         setAllBrands(response);
-      } else if (response.brand || response.brands || response.data) {
-        const brandData =
-          response.brand || response.brands || response.data || [];
-        const brandsArray = Array.isArray(brandData) ? brandData : [];
-        setBrands(brandsArray);
-        setAllBrands(brandsArray);
       } else {
         console.error("Unexpected brands response:", response);
         setBrands([]);
@@ -175,10 +168,8 @@ const ProductPage = () => {
           `/api/brands?categories=${product.category_id}`,
           "GET",
         );
-        if (response.brand || response.brands || response.data) {
-          const brandData =
-            response.brand || response.brands || response.data || [];
-          setBrands(Array.isArray(brandData) ? brandData : allBrands);
+        if (response.success && response.brand) {
+          setBrands(response.brand);
         } else {
           setBrands(allBrands);
         }
@@ -313,10 +304,8 @@ const ProductPage = () => {
       );
       console.log("Brands by category response:", response);
 
-      if (response.brand || response.brands || response.data) {
-        const brandData =
-          response.brand || response.brands || response.data || [];
-        setBrands(Array.isArray(brandData) ? brandData : []);
+      if (response.success && response.brand) {
+        setBrands(response.brand);
       } else {
         console.log("No brands found for category, showing all brands");
         setBrands(allBrands);

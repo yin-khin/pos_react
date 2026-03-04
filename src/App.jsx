@@ -28,7 +28,6 @@
 
 // export default App;
 
-import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 // Layout and Common Components
@@ -43,11 +42,20 @@ import CategoryPage from "./page/feature/category/category";
 import BrandPage from "./page/feature/brand/BrandPage";
 import ProductPage from "./page/feature/products/ProductPage";
 import CustomerPage from "./page/feature/customer/CustomersPage";
+import PaymentMethodPage from "./page/feature/payment/PaymentMethodPage";
+import SettingPage from "./page/feature/setting/SettingPage";
+import StoreInfoPage from "./page/feature/storeinfo/StoreInfoPage";
+import TelegramPage from "./page/feature/telegram/TelegramPage";
+import PosPage from "./page/feature/pos/PosPage";
+import SalesReportPage from "./page/feature/reports/SalesReportPage";
+import InventoryReportPage from "./page/feature/reports/InventoryReportPage";
+import CustomerReportPage from "./page/feature/reports/CustomerReportPage";
 
 // Auth Components
 import LoginPage from "./page/auth/LoginPage";
 import RegisterPage from "./page/auth/RegisterPage";
 import ForgetPage from "./page/auth/ForgetPage";
+import MainPage from "./page/Frontend/HomePage/MainPage";
 
 const App = () => {
   return (
@@ -65,12 +73,21 @@ const App = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/products" element={<ProductPage />} />
           <Route path="/sales" element={<SalesPage />} />
+          <Route path="/sales/new" element={<PosPage />} />
           <Route path="/customers" element={<CustomerPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports/sales" element={<SalesReportPage />} />
+          <Route path="/reports/inventory" element={<InventoryReportPage />} />
+          <Route path="/reports/customer" element={<CustomerReportPage />} />
           <Route path="/categories" element={<CategoryPage />} />
           <Route path="/brands" element={<BrandPage />} />
+          <Route path="/payment-methods" element={<PaymentMethodPage />} />
+          <Route path="/settings" element={<SettingPage />} />
+          <Route path="/store-info" element={<StoreInfoPage />} />
+          <Route path="/telegram" element={<TelegramPage />} />
         </Route>
-      </Route>
+        <Route path="/frontend" element={<MainPage/>} />
+       </Route>
 
       {/* 404 - Not Found (Redirect to login or dashboard) */}
       <Route path="*" element={<Navigate to="/login" replace />} />

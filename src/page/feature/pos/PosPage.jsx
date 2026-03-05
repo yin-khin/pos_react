@@ -14,11 +14,16 @@ const PosPage = () => {
   const [categories, setCategories] = useState(["All Items"]);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
 
   // Fetch products from API
   useEffect(() => {
     fetchProducts();
     fetchPaymentMethods();
+    fetchCustomers();
   }, []);
 
   const fetchProducts = async () => {
@@ -73,6 +78,18 @@ const PosPage = () => {
       console.error("Error fetching payment methods:", error);
       // Don't show alert, just use default CASH method
       console.log("Using default CASH payment method");
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await request("/api/customers", "GET");
+      const customersData = response.data || response.customers || [];
+      if (response.success && customersData.length > 0) {
+        setCustomers(customersData);
+      }
+    } catch (error) {
+      console.error("Error fetching customers:", error);
     }
   };
 
@@ -168,6 +185,7 @@ const PosPage = () => {
         sub_total: subtotal,
         tax: tax,
         pay_method: paymentMethod,
+        customer_id: selectedCustomer?.customer_id || null,
         create_by: "POS User",
         items: cartItems.map((item) => ({
           prd_id: item.prd_id,
@@ -183,6 +201,7 @@ const PosPage = () => {
         setCartItems([]);
         setCashReceived("");
         setPromoCode("");
+        setSelectedCustomer(null);
         // Refresh products to update stock
         fetchProducts();
       } else {
@@ -474,10 +493,61 @@ const PosPage = () => {
           <div className="customer-box">
             <div>
               <span>Customer</span>
-              <strong>Guest Customer</strong>
+              <strong>{selectedCustomer ? selectedCustomer.customer_name : "Guest Customer"}</strong>
             </div>
-            <button type="button">✎</button>
+            <button type="button" onClick={() => setShowCustomerModal(true)}>✎</button>
           </div>
+
+          {showCustomerModal && (
+            <div className="customer-modal-overlay">
+              <div className="customer-modal">
+                <div className="modal-header">
+                  <h3>Select Customer</h3>
+                  <button type="button" onClick={() => setShowCustomerModal(false)}>✕</button>
+                </div>
+                <div className="modal-body">
+                  <input
+                    type="text"
+                    placeholder="Search customers..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="modal-search"
+                  />
+                  <div className="customers-list">
+                    <button
+                      type="button"
+                      className={!selectedCustomer ? "customer-item active" : "customer-item"}
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setShowCustomerModal(false);
+                      }}
+                    >
+                      <strong>👤 Guest Customer</strong>
+                      <p>Walk-in Customer</p>
+                    </button>
+                    {customers
+                      .filter((c) =>
+                        c.customer_name?.toLowerCase().includes(customerSearch.toLowerCase())
+                      )
+                      .map((customer) => (
+                        <button
+                          key={customer.customer_id}
+                          type="button"
+                          className={selectedCustomer?.customer_id === customer.customer_id ? "customer-item active" : "customer-item"}
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setShowCustomerModal(false);
+                          }}
+                        >
+                          <strong>👤 {customer.customer_name}</strong>
+                          <p>{customer.customer_email || customer.customer_phone || "No contact"}</p>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             type="button"

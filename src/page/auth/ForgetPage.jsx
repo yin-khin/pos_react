@@ -17,8 +17,8 @@ const ForgetPage = () => {
     setLoading(true);
     setMessage('');
     try {
-      // Path must match backend exactly: /api/user/send_otp
-      const data = await request('/api/user/send_otp', 'POST', { email });
+      // Path must match backend exactly: /api/user/sent_opt
+      const data = await request('/api/user/sent_opt', 'POST', { email });
       if (data && data.success) {
         setMessage('OTP sent to your email!');
         setStep(2);
@@ -38,8 +38,8 @@ const ForgetPage = () => {
     setLoading(true);
     setMessage('');
     try {
-      // Path must match backend exactly: /api/user/verify_otp
-      const data = await request('/api/user/verify_otp', 'POST', { email, otp });
+      // Path must match backend exactly: /api/user/verify_opt
+      const data = await request('/api/user/verify_opt', 'POST', { email, otp });
       if (data && data.success) {
         setMessage('OTP verified! Please enter your new password.');
         setStep(3);

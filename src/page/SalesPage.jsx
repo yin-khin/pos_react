@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState, useEffect } from "react";
 import request from "../utils/request";
 import { showAlert, showConfirm } from "../utils/alert";
@@ -12,9 +13,26 @@ const SalesPage = () => {
   const [loading, setLoading] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
+  const [showNewSaleModal, setShowNewSaleModal] = useState(false);
+  const [newSaleData, setNewSaleData] = useState({
+    invoice_id: '',
+    sale_date: new Date().toISOString().split('T')[0],
+    pay_method: 'Cash',
+    qr_code: '',
+    items: [],
+    sub_total: 0,
+    tax: 0,
+    total: 0
+  });
+  const [cart, setCart] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const [products, setProducts] = useState([]);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     fetchSales();
+    fetchProducts();
   }, []);
 
   useEffect(() => {
@@ -47,6 +65,74 @@ const SalesPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const response = await request("/api/products?limit=100", "GET");
+      if (response.success && response.data) {
+        setProducts(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    }
+  };
+
+  const addToCart = () => {
+    if (!selectedProduct || quantity <= 0) return;
+
+    const existingItem = cart.find(item => item.prd_id === selectedProduct.prd_id);
+    if (existingItem) {
+      setCart(cart.map(item =>
+        item.prd_id === selectedProduct.prd_id
+          ? { ...item, qty: item.qty + quantity }
+          : item
+      ));
+    } else {
+      setCart([...cart, {
+        prd_id: selectedProduct.prd_id,
+        name: selectedProduct.name,
+        price: parseFloat(selectedProduct.price),
+        qty: quantity
+      }]);
+    }
+    setSelectedProduct(null);
+    setQuantity(1);
+    calculateTotals();
+  };
+
+  const removeFromCart = (prd_id) => {
+    setCart(cart.filter(item => item.prd_id !== prd_id));
+    calculateTotals();
+  };
+
+  const updateQuantity = (prd_id, newQty) => {
+    if (newQty <= 0) {
+      removeFromCart(prd_id);
+      return;
+    }
+    setCart(cart.map(item =>
+      item.prd_id === prd_id ? { ...item, qty: newQty } : item
+    ));
+    calculateTotals();
+  };
+
+  const calculateTotals = () => {
+    const subTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const tax = subTotal * 0.1; // 10% tax
+    const total = subTotal + tax;
+
+    setNewSaleData(prev => ({
+      ...prev,
+      sub_total: subTotal,
+      tax: tax,
+      total: total,
+      items: cart.map(item => ({
+        prd_id: item.prd_id,
+        qty: item.qty,
+        price: item.price
+      }))
+    }));
   };
 
   const handleViewDetails = async (saleId) => {
@@ -82,6 +168,75 @@ const SalesPage = () => {
     }
   };
 
+  const handleCreateSale = async (e) => {
+    e.preventDefault();
+    if (!newSaleData.invoice_id || cart.length === 0) {
+      showAlert("error", "Please fill invoice ID and add items to cart");
+      return;
+    }
+    if (newSaleData.pay_method === 'KHQR' && !newSaleData.qr_code) {
+      showAlert("error", "Please scan KHQR code for payment");
+      return;
+    }
+
+    try {
+      const response = await request("/api/sales", "POST", {
+        invoice_id: newSaleData.invoice_id,
+        sale_date: newSaleData.sale_date,
+        amount: newSaleData.total,
+        sub_total: newSaleData.sub_total,
+        tax: newSaleData.tax,
+        pay_method: newSaleData.pay_method,
+        qr_code: newSaleData.qr_code,
+        create_by: "admin", // Should get from auth context
+        items: newSaleData.items
+      });
+      if (response.success) {
+        showAlert("success", "Sale created successfully");
+        setShowNewSaleModal(false);
+        resetSaleForm();
+        fetchSales();
+      }
+    } catch (error) {
+      console.error("Error creating sale:", error);
+      showAlert("error", "Error creating sale");
+    }
+  };
+
+  const resetSaleForm = () => {
+    setNewSaleData({
+      invoice_id: '',
+      sale_date: new Date().toISOString().split('T')[0],
+      pay_method: 'Cash',
+      qr_code: '',
+      items: [],
+      sub_total: 0,
+      tax: 0,
+      total: 0
+    });
+    setCart([]);
+    setSelectedProduct(null);
+    setQuantity(1);
+  };
+
+  const startScanning = async () => {
+    setScanning(true);
+    try {
+      const QrScanner = (await import('qr-scanner')).default;
+      const video = document.getElementById('qr-video');
+      const qrScanner = new QrScanner(video, result => {
+        setNewSaleData({...newSaleData, qr_code: result.data});
+        setScanning(false);
+        qrScanner.stop();
+        qrScanner.destroy();
+      });
+      await qrScanner.start();
+    } catch (error) {
+      console.error("Error scanning QR:", error);
+      setScanning(false);
+    }
+  };
+
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedSales = filteredSales.slice(
@@ -93,6 +248,12 @@ const SalesPage = () => {
     <div className="category-container">
       <div className="category-header">
         <h1 className="category-title">Sales Management</h1>
+        <button
+          className="btn-add"
+          onClick={() => setShowNewSaleModal(true)}
+        >
+          + New Sale
+        </button>
       </div>
 
       <div className="category-controls">
@@ -363,6 +524,233 @@ const SalesPage = () => {
                       : "0.00"}
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Sale Modal */}
+      {showNewSaleModal && (
+        <div className="modal-overlay">
+          <div className="modal-content large-modal" style={{width: '98%', maxWidth: '1900px', height: '85%'}}>
+            <div className="modal-header">
+              <h2>Create New Sale</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowNewSaleModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="pos-container" style={{display: 'flex', height: '100%', gap: '0'}}>
+                {/* Product Selection Panel - Hide when KHQR is selected */}
+                <div className="pos-products" style={{flex: newSaleData.pay_method === 'KHQR' ? '0' : '1', padding: '20px', borderRight: '1px solid #ddd', overflow: 'hidden', display: newSaleData.pay_method === 'KHQR' ? 'none' : 'block'}}>
+                  <h3>Products</h3>
+                  <div className="product-search" style={{marginBottom: '20px'}}>
+                    <select
+                      value={selectedProduct?.prd_id || ''}
+                      onChange={(e) => {
+                        const product = products.find(p => p.prd_id === e.target.value);
+                        setSelectedProduct(product);
+                      }}
+                      style={{width: '100%', padding: '8px'}}
+                    >
+                      <option value="">Select Product</option>
+                      {products.map(product => (
+                        <option key={product.prd_id} value={product.prd_id}>
+                          {product.name} - ${product.price}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="quantity-input" style={{marginBottom: '20px'}}>
+                    <label>Quantity:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      style={{width: '60px', marginLeft: '10px'}}
+                    />
+                    <button
+                      onClick={addToCart}
+                      disabled={!selectedProduct}
+                      style={{marginLeft: '10px', padding: '5px 10px'}}
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cart Panel */}
+                <div className="pos-cart" style={{flex: 1, padding: '20px', borderRight: '1px solid #ddd'}}>
+                  <h3>Cart</h3>
+                  <div className="cart-items" style={{height: '300px', overflowY: 'auto', marginBottom: '20px'}}>
+                    {cart.length === 0 ? (
+                      <p>No items in cart</p>
+                    ) : (
+                      cart.map(item => (
+                        <div key={item.prd_id} className="cart-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', border: '1px solid #eee', marginBottom: '5px'}}>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <br />
+                            ${item.price} x {item.qty} = ${(item.price * item.qty).toFixed(2)}
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.qty}
+                              onChange={(e) => updateQuantity(item.prd_id, parseInt(e.target.value))}
+                              style={{width: '50px', marginRight: '10px'}}
+                            />
+                            <button onClick={() => removeFromCart(item.prd_id)} style={{color: 'red'}}>×</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="cart-totals">
+                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '5px'}}>
+                      <span>Subtotal:</span>
+                      <span>${newSaleData.sub_total.toFixed(2)}</span>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '5px'}}>
+                      <span>Tax (10%):</span>
+                      <span>${newSaleData.tax.toFixed(2)}</span>
+                    </div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px'}}>
+                      <span>Total:</span>
+                      <span>${newSaleData.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Panel */}
+                <div className="pos-payment" style={{flex: 1, padding: '20px'}}>
+                  <h3>Payment</h3>
+                  <form onSubmit={handleCreateSale}>
+                    <div className="form-group" style={{marginBottom: '15px'}}>
+                      <label>Invoice ID</label>
+                      <input
+                        type="text"
+                        value={newSaleData.invoice_id}
+                        onChange={(e) => setNewSaleData({...newSaleData, invoice_id: e.target.value})}
+                        required
+                        style={{width: '100%', padding: '8px'}}
+                      />
+                    </div>
+                    <div className="form-group" style={{marginBottom: '15px'}}>
+                      <label>Sale Date</label>
+                      <input
+                        type="date"
+                        value={newSaleData.sale_date}
+                        onChange={(e) => setNewSaleData({...newSaleData, sale_date: e.target.value})}
+                        required
+                        style={{width: '100%', padding: '8px'}}
+                      />
+                    </div>
+                    <div className="form-group" style={{marginBottom: '20px'}}>
+                      <label>Payment Method</label>
+                      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+                        <button
+                          type="button"
+                          onClick={() => setNewSaleData({...newSaleData, pay_method: 'Cash', qr_code: ''})}
+                          style={{
+                            padding: '10px',
+                            background: newSaleData.pay_method === 'Cash' ? '#28a745' : '#e9ecef',
+                            color: newSaleData.pay_method === 'Cash' ? 'white' : '#000',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          💵 Cash
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewSaleData({...newSaleData, pay_method: 'Card', qr_code: ''})}
+                          style={{
+                            padding: '10px',
+                            background: newSaleData.pay_method === 'Card' ? '#0056b3' : '#e9ecef',
+                            color: newSaleData.pay_method === 'Card' ? 'white' : '#000',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          💳 Card
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewSaleData({...newSaleData, pay_method: 'KHQR', qr_code: ''})}
+                          style={{
+                            padding: '10px',
+                            background: newSaleData.pay_method === 'KHQR' ? '#dc3545' : '#e9ecef',
+                            color: newSaleData.pay_method === 'KHQR' ? 'white' : '#000',
+                            border: '2px solid #dc3545',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            gridColumn: '1 / -1'
+                          }}
+                        >
+                          📱 KHQR QR Code Payment
+                        </button>
+                      </div>
+                    </div>
+                    <div className="form-actions" style={{marginTop: '20px'}}>
+                      <button type="submit" className="btn-submit" style={{width: '100%', padding: '10px'}}>Complete Sale</button>
+                      <button type="button" onClick={() => setShowNewSaleModal(false)} style={{width: '100%', padding: '10px', marginTop: '10px'}}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* KHQR Sidebar */}
+                {newSaleData.pay_method === 'KHQR' && (
+                  <div className="pos-khqr-sidebar" style={{flex: '1.3', minWidth: '400px', padding: '20px', borderLeft: '3px solid #dc3545', background: '#fff5f5', overflowY: 'auto'}}>
+                    <h3>KHQR Payment</h3>
+                    <div className="khqr-amount" style={{marginBottom: '20px', padding: '15px', background: '#fff', borderRadius: '8px'}}>
+                      <strong>Amount to Pay:</strong>
+                      <div style={{fontSize: '24px', color: '#007bff', marginTop: '10px'}}>
+                        ${newSaleData.total.toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="qr-scanner-section">
+                      <button
+                        type="button"
+                        onClick={startScanning}
+                        disabled={scanning}
+                        style={{width: '100%', padding: '10px', marginBottom: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px'}}
+                      >
+                        {scanning ? '🔄 Scanning...' : '📱 Scan Customer KHQR'}
+                      </button>
+                      <div id="qr-video-container" style={{marginBottom: '10px'}}>
+                        <video id="qr-video" style={{width: '100%', maxWidth: '280px', border: '1px solid #ccc', borderRadius: '4px'}}></video>
+                      </div>
+                      <textarea
+                        value={newSaleData.qr_code}
+                        onChange={(e) => setNewSaleData({...newSaleData, qr_code: e.target.value})}
+                        placeholder="KHQR code will be scanned here"
+                        rows="4"
+                        style={{width: '100%', marginBottom: '10px'}}
+                        required
+                      />
+                      {newSaleData.qr_code && (
+                        <div className="qr-result" style={{padding: '10px', background: '#d4edda', borderRadius: '4px', border: '1px solid #c3e6cb'}}>
+                          <strong>✅ KHQR Scanned Successfully</strong>
+                          <p style={{fontSize: '12px', wordBreak: 'break-all', marginTop: '5px'}}>
+                            {newSaleData.qr_code.substring(0, 50)}...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

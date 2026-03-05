@@ -46,7 +46,6 @@ import PaymentMethodPage from "./page/feature/payment/PaymentMethodPage";
 import SettingPage from "./page/feature/setting/SettingPage";
 import StoreInfoPage from "./page/feature/storeinfo/StoreInfoPage";
 import TelegramPage from "./page/feature/telegram/TelegramPage";
-import PosPage from "./page/feature/pos/PosPage";
 import SalesReportPage from "./page/feature/reports/SalesReportPage";
 import InventoryReportPage from "./page/feature/reports/InventoryReportPage";
 import CustomerReportPage from "./page/feature/reports/CustomerReportPage";
@@ -56,6 +55,7 @@ import LoginPage from "./page/auth/LoginPage";
 import RegisterPage from "./page/auth/RegisterPage";
 import ForgetPage from "./page/auth/ForgetPage";
 import MainPage from "./page/Frontend/HomePage/MainPage";
+import PosPage from "./page/feature/pos/PosPage";
 
 const App = () => {
   return (
@@ -71,8 +71,8 @@ const App = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/products" element={<ProductPage />} />
-          <Route path="/sales" element={<SalesPage />} />
+          <Route path="/products/master" element={<ProductPage />} />
+          <Route path="/sales/history" element={<SalesPage />} />
           <Route path="/sales/new" element={<PosPage />} />
           <Route path="/customers" element={<CustomerPage />} />
           <Route path="/reports" element={<ReportsPage />} />

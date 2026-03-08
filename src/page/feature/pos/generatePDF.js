@@ -265,11 +265,11 @@ export const generateInvoicePDF = async (data) => {
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text("Please come again", pageWidth / 2, yPos, { align: "center" });
-  yPos += 5;
+  yPos += 10;
 
   doc.setFontSize(7);
   doc.setTextColor(150, 150, 150);
-  doc.text(data.invoiceId, pageWidth / 2, yPos, { align: "center" });
+  // doc.text(data.invoiceId, pageWidth / 2, yPos, { align: "center" });
 
   // Save PDF
   doc.save(`${data.invoiceId}.pdf`);

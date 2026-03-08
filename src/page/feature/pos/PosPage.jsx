@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 
 import { useMemo, useState, useEffect } from "react";
 import { showAlert } from "../../../utils/alert";
@@ -143,7 +144,7 @@ const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
                 </p>
               </div>
 
-              {qrData.md5Hash && (
+              {/* {qrData.md5Hash && (
                 <div className="px-4 py-2 rounded-xl" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
                   <p className="text-xs font-semibold text-center mb-1" style={{ color: "#166534" }}>
                     🔐 Verification Hash (MD5)
@@ -155,7 +156,7 @@ const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
                     Use this to verify on Bakong gateway
                   </p>
                 </div>
-              )}
+              )} */}
 
               <p className="text-xs text-center" style={{ color: "#94a3b8" }}>
                 ស្គែន QR ដើម្បីបង់ប្រាក់ · Scan to pay<br />
@@ -179,7 +180,7 @@ const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
             }}
             className="flex-1 py-3 rounded-xl font-bold text-sm"
             style={{ background: "#10b981", color: "#fff", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}>
-            ✓ Confirm Payment / បញ្ជាក់
+            ✓ Confirm Payment 
           </button>
         </div>
       </div>

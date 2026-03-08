@@ -403,10 +403,9 @@ const ProductPage = () => {
                     <td>{getCategoryLabel(product.category_id)}</td>
                     <td>{getBrandLabel(product.brand_id)}</td>
                     <td>{product.qty ?? "-"}</td>
-                    <td style={{ color: "green" }}>
-                      $
+                    <td style={{ color: "green", fontWeight: "600" }}>
                       {product.unit_cost != null
-                        ? product.unit_cost.toLocaleString()
+                        ? `$${parseFloat(product.unit_cost).toFixed(2)}`
                         : "-"}
                     </td>
                     <td>{product.telegram || "-"}</td>
@@ -705,14 +704,18 @@ const ProductPage = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Unit Cost</label>
+                  <label>Unit Cost (USD $ or KHR ៛)</label>
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     value={formData.unit_cost}
                     onChange={set("unit_cost")}
-                    placeholder="0"
+                    placeholder="0.00"
                   />
+                  <small style={{ color: "#666", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                    Supports: $0.01, $0.10, $1.00 or Riel amounts
+                  </small>
                 </div>
               </div>
               <div

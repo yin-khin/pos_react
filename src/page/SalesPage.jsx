@@ -16,7 +16,7 @@ const SalesPage = () => {
   const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [newSaleData, setNewSaleData] = useState({
     invoice_id: '',
-    sale_date: new Date().toISOString().split('T')[0],
+    sale_date: new Date().toISOString(), // Full timestamp
     pay_method: 'Cash',
     qr_code: '',
     items: [],
@@ -206,7 +206,7 @@ const SalesPage = () => {
   const resetSaleForm = () => {
     setNewSaleData({
       invoice_id: '',
-      sale_date: new Date().toISOString().split('T')[0],
+      sale_date: new Date().toISOString(), // Full timestamp
       pay_method: 'Cash',
       qr_code: '',
       items: [],
@@ -645,9 +645,9 @@ const SalesPage = () => {
                     <div className="form-group" style={{marginBottom: '15px'}}>
                       <label>Sale Date</label>
                       <input
-                        type="date"
-                        value={newSaleData.sale_date}
-                        onChange={(e) => setNewSaleData({...newSaleData, sale_date: e.target.value})}
+                        type="datetime-local"
+                        value={newSaleData.sale_date ? new Date(newSaleData.sale_date).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => setNewSaleData({...newSaleData, sale_date: new Date(e.target.value).toISOString()})}
                         required
                         style={{width: '100%', padding: '8px'}}
                       />

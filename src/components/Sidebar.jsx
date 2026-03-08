@@ -54,15 +54,24 @@ const Sidebar = () => {
       path: "/settings",
       submenu: [
         { id: "app-settings", label: "App Settings", path: "/settings" },
-        { id: "payment-methods", label: "Payment Methods", path: "/payment-methods" },
+        {
+          id: "stock-alerts",
+          label: "Stock Alert Settings",
+          path: "/settings/stock-alerts",
+        },
+        {
+          id: "payment-methods",
+          label: "Payment Methods",
+          path: "/payment-methods",
+        },
         { id: "store-info", label: "Store Information", path: "/store-info" },
         { id: "telegram", label: "Telegram Config", path: "/telegram" },
       ],
     },
     {
-      id:"frontend",
-      label:"🌐 Frontend",
-      path:"/frontend"
+      id: "frontend",
+      label: "🌐 Frontend",
+      path: "/frontend",
     },
   ];
 
@@ -77,7 +86,7 @@ const Sidebar = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>CLUBCODE POS</h2>
+        <h2 style={{ textTransform: "uppercase" }}>POS <br /> Operation System</h2>
       </div>
 
       <nav className="sidebar-nav">

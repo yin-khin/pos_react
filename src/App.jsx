@@ -44,6 +44,7 @@ import ProductPage from "./page/feature/products/ProductPage";
 import CustomerPage from "./page/feature/customer/CustomersPage";
 import PaymentMethodPage from "./page/feature/payment/PaymentMethodPage";
 import SettingPage from "./page/feature/setting/SettingPage";
+import StockAlertSettingPage from "./page/feature/setting/StockAlertSettingPage";
 import StoreInfoPage from "./page/feature/storeinfo/StoreInfoPage";
 import TelegramPage from "./page/feature/telegram/TelegramPage";
 import SalesReportPage from "./page/feature/reports/SalesReportPage";
@@ -83,6 +84,7 @@ const App = () => {
           <Route path="/brands" element={<BrandPage />} />
           <Route path="/payment-methods" element={<PaymentMethodPage />} />
           <Route path="/settings" element={<SettingPage />} />
+          <Route path="/settings/stock-alerts" element={<StockAlertSettingPage />} />
           <Route path="/store-info" element={<StoreInfoPage />} />
           <Route path="/telegram" element={<TelegramPage />} />
         </Route>

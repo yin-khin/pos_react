@@ -18,6 +18,11 @@ import {
 } from "recharts";
 
 const Dashboard = () => {
+
+    // Retrieve user info from localStorage (saved during login)
+  const user = JSON.parse(localStorage.getItem("user"));
+  // const isAuthenticated = !!localStorage.getItem("token");
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -157,7 +162,7 @@ const Dashboard = () => {
         <h1 style={{ fontSize: "28px", fontWeight: "bold", marginBottom: "5px" }}>
           Dashboard
         </h1>
-        <p style={{ color: "#666" }}>Welcome, Yan Naing</p>
+        <p style={{ color: "#666" }}> <span >Welcome, {user?.username || "User"}</span></p>
       </div>
 
       {/* Stats Cards */}

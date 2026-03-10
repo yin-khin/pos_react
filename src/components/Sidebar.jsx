@@ -1,4 +1,5 @@
-import { useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MdOutlineSpaceDashboard } from "react-icons/md";
 import {
@@ -18,21 +19,19 @@ const menuItems = [
   {
     id: "products",
     label: "Inventory",
-    path: "/products",
     icon: <Package size={18} />,
     submenu: [
-      { id: "categories",  label: "Categories", path: "/categories",       icon: <Layers size={15} /> },
-      { id: "brands",      label: "Brands",     path: "/brands",           icon: <Tags size={15} /> },
-      { id: "products",    label: "Products",   path: "/products/master",  icon: <Package size={15} /> },
+      { id: "categories", label: "Categories", path: "/categories", icon: <Layers size={15} /> },
+      { id: "brands", label: "Brands", path: "/brands", icon: <Tags size={15} /> },
+      { id: "products-master", label: "Products", path: "/products/master", icon: <Package size={15} /> },
     ],
   },
   {
     id: "sales",
     label: "Point Of Sale",
-    path: "/sales",
     icon: <ShoppingCart size={18} />,
     submenu: [
-      { id: "newsale",    label: "New Sale",      path: "/sales/new",     icon: <ShoppingCart size={15} /> },
+      { id: "new-sale", label: "New Sale", path: "/sales/new", icon: <ShoppingCart size={15} /> },
       { id: "sales-list", label: "Sales History", path: "/sales/history", icon: <History size={15} /> },
     ],
   },
@@ -45,25 +44,23 @@ const menuItems = [
   {
     id: "reports",
     label: "Report",
-    path: "/reports",
     icon: <BarChart3 size={18} />,
     submenu: [
-      { id: "sales-report",     label: "Sales Report",     path: "/reports/sales",     icon: <FileText size={15} /> },
+      { id: "sales-report", label: "Sales Report", path: "/reports/sales", icon: <FileText size={15} /> },
       { id: "inventory-report", label: "Inventory Report", path: "/reports/inventory", icon: <Package size={15} /> },
-      { id: "customer-report",  label: "Customer Report",  path: "/reports/customer",  icon: <Users size={15} /> },
+      { id: "customer-report", label: "Customer Report", path: "/reports/customer", icon: <Users size={15} /> },
     ],
   },
   {
     id: "settings",
     label: "Settings",
-    path: "/settings",
     icon: <Settings size={18} />,
     submenu: [
-      { id: "app-settings",    label: "App Settings",      path: "/settings",              icon: <Settings size={15} /> },
-      { id: "stock-alerts",    label: "Stock Alerts",      path: "/settings/stock-alerts", icon: <Bell size={15} /> },
-      { id: "payment-methods", label: "Payment Methods",   path: "/payment-methods",       icon: <CreditCard size={15} /> },
-      { id: "store-info",      label: "Store Information", path: "/store-info",            icon: <Store size={15} /> },
-      { id: "telegram",        label: "Telegram Config",   path: "/telegram",              icon: <Send size={15} /> },
+      { id: "app-settings", label: "App Settings", path: "/settings", icon: <Settings size={15} /> },
+      { id: "stock-alerts", label: "Stock Alerts", path: "/settings/stock-alerts", icon: <Bell size={15} /> },
+      { id: "payment-methods", label: "Payment Methods", path: "/payment-methods", icon: <CreditCard size={15} /> },
+      { id: "store-info", label: "Store Information", path: "/store-info", icon: <Store size={15} /> },
+      { id: "telegram", label: "Telegram Config", path: "/telegram", icon: <Send size={15} /> },
     ],
   },
   {
@@ -80,22 +77,33 @@ const Sidebar = () => {
   const [expandedMenu, setExpandedMenu] = useState(null);
 
   const isActiveParent = (item) => {
-    if (location.pathname === item.path) return true;
-    if (item.submenu) return item.submenu.some((s) => location.pathname === s.path);
+    if (item.path && location.pathname === item.path) return true;
+    if (item.submenu) {
+      return item.submenu.some((sub) => location.pathname === sub.path);
+    }
     return false;
   };
 
+  useEffect(() => {
+    const activeParent = menuItems.find((item) =>
+      item.submenu?.some((sub) => sub.path === location.pathname)
+    );
+
+    if (activeParent) {
+      setExpandedMenu(activeParent.id);
+    }
+  }, [location.pathname]);
+
   const handleItemClick = (item) => {
     if (item.submenu) {
-      setExpandedMenu(expandedMenu === item.id ? null : item.id);
-    } else {
+      setExpandedMenu((prev) => (prev === item.id ? null : item.id));
+    } else if (item.path) {
       navigate(item.path);
     }
   };
 
   return (
     <div className="sidebar">
-      {/* Header */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">P</div>
@@ -106,7 +114,6 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="sidebar-nav">
         {menuItems.map((item) => (
           <div key={item.id} className="nav-item-wrapper">
@@ -116,6 +123,7 @@ const Sidebar = () => {
             >
               <span className="nav-item-icon">{item.icon}</span>
               <span className="nav-item-label">{item.label}</span>
+
               {item.submenu && (
                 <ChevronDown
                   size={14}
@@ -133,7 +141,7 @@ const Sidebar = () => {
                     onClick={() => navigate(sub.path)}
                   >
                     <span className="submenu-item-icon">{sub.icon}</span>
-                    {sub.label}
+                    <span>{sub.label}</span>
                   </button>
                 ))}
               </div>
@@ -141,8 +149,6 @@ const Sidebar = () => {
           </div>
         ))}
       </nav>
-
-     
     </div>
   );
 };

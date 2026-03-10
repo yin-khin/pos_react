@@ -10,12 +10,12 @@ const Layout = () => {
 
   useEffect(() => {
     if (!token) return;
-    // redirect after 1 minute
+
     const timer = setTimeout(() => {
       localStorage.removeItem("token");
       navigate("/login");
-    }, 1 *60 * 60 * 1000); // 1 minute
-    // cleanup
+    }, 1 * 60 * 60 * 1000); // 1 hour
+
     return () => clearTimeout(timer);
   }, [navigate, token]);
 
@@ -27,9 +27,13 @@ const Layout = () => {
     <div className="app-container">
       <div className="main-layout">
         <Sidebar />
+
         <div className="content-area">
           <Navbar />
-          <Outlet />
+
+          <div className="page-container">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>

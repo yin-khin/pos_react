@@ -66,16 +66,16 @@ const CustomerReportPage = () => {
       "Full Name",
       "Email",
       "Phone",
-      "Address",
-      "Status",
+      // "Address",
+      // "Status",
     ];
     const rows = filteredCustomers.map((customer) => [
       customer.customer_id,
-      customer.full_name,
+      customer.fullname || "N/A",
       customer.email || "N/A",
       customer.phone || "N/A",
-      customer.address || "N/A",
-      customer.status || "N/A",
+      // customer.address || "N/A",
+      // customer.status || "N/A",
     ]);
 
     const csvContent = [
@@ -112,16 +112,16 @@ const CustomerReportPage = () => {
     // Add table
     const tableData = filteredCustomers.map((customer) => [
       customer.customer_id,
-      customer.full_name,
+      customer.fullname || "N/A",
       customer.email || "N/A",
       customer.phone || "N/A",
-      customer.address || "N/A",
-      customer.status || "N/A",
+      // customer.address || "N/A",
+      // customer.status || "N/A",
     ]);
     
     autoTable(doc, {
       startY: 54,
-      head: [["Customer ID", "Full Name", "Email", "Phone", "Address", "Status"]],
+      head: [["Customer ID", "Full Name", "Email", "Phone",]],
       body: tableData,
       theme: "grid",
       headStyles: { fillColor: [25, 118, 210] },
@@ -283,12 +283,12 @@ const CustomerReportPage = () => {
                 <th style={{ padding: "12px", textAlign: "left", fontWeight: "600" }}>
                   Phone
                 </th>
-                <th style={{ padding: "12px", textAlign: "left", fontWeight: "600" }}>
+                {/* <th style={{ padding: "12px", textAlign: "left", fontWeight: "600" }}>
                   Address
-                </th>
-                <th style={{ padding: "12px", textAlign: "center", fontWeight: "600" }}>
+                </th> */}
+                {/* <th style={{ padding: "12px", textAlign: "center", fontWeight: "600" }}>
                   Status
-                </th>
+                </th> */}
               </tr>
             </thead>
             <tbody>
@@ -312,16 +312,16 @@ const CustomerReportPage = () => {
                   >
                     <td style={{ padding: "12px" }}>{customer.customer_id}</td>
                     <td style={{ padding: "12px", fontWeight: "500" }}>
-                      {customer.full_name}
+                      {customer.fullname || "N/A"}
                     </td>
                     <td style={{ padding: "12px", color: "#666" }}>
                       {customer.email || "N/A"}
                     </td>
                     <td style={{ padding: "12px" }}>{customer.phone || "N/A"}</td>
                     <td style={{ padding: "12px", color: "#666", maxWidth: "200px" }}>
-                      {customer.address || "N/A"}
+                      {/* {customer.address || "N/A"} */}
                     </td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
+                    {/* <td style={{ padding: "12px", textAlign: "center" }}>
                       <span
                         style={{
                           padding: "4px 12px",
@@ -335,7 +335,7 @@ const CustomerReportPage = () => {
                       >
                         {customer.status || "N/A"}
                       </span>
-                    </td>
+                    </td> */}
                   </tr>
                 ))
               )}

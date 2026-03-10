@@ -375,7 +375,7 @@ const PosPage = () => {
         tax:         parseFloat(tax.toFixed(2)),
         pay_method:  paymentMethod,
         customer_id: selectedCustomer?.customer_id || null,
-        create_by:   "POS User",
+        create_by:   storeInfo?.website || "Sale Staff",
         items: cartItems.map((i) => ({ 
           prd_id: i.prd_id, 
           qty: i.qty, 

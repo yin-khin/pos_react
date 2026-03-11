@@ -55,11 +55,11 @@ import CustomerReportPage from "./page/feature/reports/CustomerReportPage";
 import LoginPage from "./page/auth/LoginPage";
 import RegisterPage from "./page/auth/RegisterPage";
 import ForgetPage from "./page/auth/ForgetPage";
-import PosPage from "./page/feature/pos/PosPage";
 
 //Frontend
 import MainPage from "./page/Frontend/HomePage/MainPage";
 import ProductDetailPage from "./page/Frontend/HomePage/ProductDetailPage";
+import PosPage from "./page/feature/pos/PosPage";
 const App = () => {
   return (
     <Routes>
@@ -90,10 +90,9 @@ const App = () => {
           <Route path="/store-info" element={<StoreInfoPage />} />
           <Route path="/telegram" element={<TelegramPage />} />
         </Route>
-        {/* Frontend Pages - Full screen without Layout wrapper */}
+       </Route>
         <Route path="/frontend" element={<MainPage/>} />
         <Route path="/frontend/product/:id" element={<ProductDetailPage/>} />
-       </Route>
 
       {/* 404 - Not Found (Redirect to login or dashboard) */}
       <Route path="*" element={<Navigate to="/login" replace />} />

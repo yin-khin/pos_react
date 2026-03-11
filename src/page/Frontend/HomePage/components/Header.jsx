@@ -274,7 +274,9 @@ const Header = ({
           <button
             className="ibtn"
             onClick={onToggleDarkMode}
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              darkMode ? "Switch to light mode" : "Switch to dark mode"
+            }
             title={darkMode ? "Light mode" : "Dark mode"}
             style={{ color: textColor }}
           >
@@ -332,9 +334,7 @@ const Header = ({
           >
             <IBag />
             {cartCount > 0 && (
-              <span className="badge">
-                {cartCount > 9 ? "9+" : cartCount}
-              </span>
+              <span className="badge">{cartCount > 9 ? "9+" : cartCount}</span>
             )}
           </button>
         </div>

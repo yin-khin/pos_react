@@ -1,80 +1,93 @@
 /* eslint-disable no-unused-vars */
-
-import { useMemo, useState, useEffect } from "react";
-import { showAlert } from "../../../utils/alert";
-import request from "../../../utils/request";
-import { generateInvoicePDF } from "./generatePDF";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { showAlert }                                  from "../../../utils/alert";
+import request                                        from "../../../utils/request";
+import { generateInvoicePDF }                         from "./generatePDF";
 import { formatCambodiaDate, formatCambodiaDateLong } from "../../../utils/dateHelper";
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG }                                  from "qrcode.react";
 
+/* ─────────────────────────────────────────────
+   Lazy-load jsPDF
+───────────────────────────────────────────── */
 const loadJsPDF = () =>
   new Promise((resolve) => {
     if (window.jspdf?.jsPDF) { resolve(window.jspdf.jsPDF); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    const s  = document.createElement("script");
+    s.src    = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
     s.onload = () => resolve(window.jspdf.jsPDF);
     document.head.appendChild(s);
   });
-/* fetch image URL → base64 via canvas (for QR in PDF) */
-const fetchImageAsBase64 = (url) =>
-  new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.width; c.height = img.height;
-      c.getContext("2d").drawImage(img, 0, 0);
-      resolve(c.toDataURL("image/png"));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
 
-/* ── Google Font ───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   Google Font
+───────────────────────────────────────────── */
 const FontLink = () => (
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet"
+  />
 );
 
-/* ── ProductIcon ───────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   Product emoji fallback
+───────────────────────────────────────────── */
 const ProductIcon = ({ category }) => {
-  const map = { Coffee: "☕", Tea: "🍵", Accessories: "🛠", Food: "🍱", Drink: "🥤" };
-  return <span className="text-2xl select-none">{map[category] || "📦"}</span>;
+  const map = {
+    Coffee:"☕", Tea:"🍵", Accessories:"🎧", Food:"🍱",
+    Drink:"🥤", Laptops:"💻", Phones:"📱", Tablets:"📲", Desktops:"🖥",
+  };
+  return <span style={{ fontSize: 32, lineHeight: 1 }} className="select-none">{map[category] || "📦"}</span>;
 };
 
-/* ══════════════════════════════════════════════════════════════════════
-   KHQR MODAL - Wing Direct Payment QR Code
-══════════════════════════════════════════════════════════════════════ */
-const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
-  const [qrData, setQrData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+/* ─────────────────────────────────────────────
+   Design tokens — clean white theme
+───────────────────────────────────────────── */
+const T = {
+  bg:        "#f4f6f9",
+  surface:   "#ffffff",
+  card:      "#ffffff",
+  cardHov:   "#fafbff",
+  border:    "#e8ecf2",
+  borderHov: "rgba(245,160,40,0.5)",
+  text:      "#111827",
+  sub:       "#374151",
+  muted:     "#6b7280",
+  faint:     "#9ca3af",
+  gold:      "#f5a028",
+  goldDk:    "#d4820a",
+  goldDim:   "rgba(245,160,40,0.09)",
+  goldBdr:   "rgba(245,160,40,0.35)",
+  green:     "#16a34a",
+  greenDim:  "rgba(22,163,74,0.09)",
+  red:       "#ef4444",
+  redDim:    "rgba(239,68,68,0.08)",
+  orange:    "#f97316",
+  shadow:    "0 1px 4px rgba(0,0,0,0.06)",
+  shadowMd:  "0 4px 16px rgba(0,0,0,0.08)",
+  shadowGold:"0 6px 20px rgba(245,160,40,0.25)",
+};
 
-  // Generate KHQR code when modal opens
+/* ═══════════════════════════════════════════════════════════
+   KHQR PAYMENT MODAL
+═══════════════════════════════════════════════════════════ */
+const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
+  const [qrData,  setQrData]  = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
   useEffect(() => {
-    const generateQR = async () => {
+    (async () => {
       try {
         setLoading(true);
-        const response = await request('/api/khqr/generate', 'POST', {
-          amount: parseFloat(amount),
-          currency: 'USD',
-          billNumber: invoiceId
+        const res = await request("/api/khqr/generate", "POST", {
+          amount: parseFloat(amount), currency: "USD", billNumber: invoiceId,
         });
-
-        if (response.success) {
-          setQrData(response.data);
-          console.log('✅ KHQR generated:', response.data);
-        } else {
-          setError('Failed to generate QR code');
-        }
-      } catch (err) {
-        console.error('QR generation error:', err);
-        setError('Failed to generate QR code');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    generateQR();
+        res.success ? setQrData(res.data) : setError("Failed to generate QR code");
+      } catch (e) {
+        console.error("KHQR:", e);
+        setError("Failed to generate QR code");
+      } finally { setLoading(false); }
+    })();
   }, [amount, invoiceId]);
 
   useEffect(() => {
@@ -84,136 +97,146 @@ const QrModal = ({ amount, invoiceId, onClose, onPaymentConfirmed }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(15,23,42,0.55)", backdropFilter: "blur(8px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="rounded-3xl overflow-hidden"
-        style={{ background: "#fff", border: "1.5px solid #e2e8f0",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.18)", width: 400 }}>
-        <div className="px-6 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: "1px solid #f1f5f9" }}>
+    <div
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{
+        position:"fixed", inset:0, zIndex:1000,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        background:"rgba(17,24,39,0.4)", backdropFilter:"blur(10px)",
+      }}
+    >
+      <div style={{
+        background: T.surface, borderRadius: 24,
+        border: `1px solid ${T.border}`, width: 420,
+        overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.18)",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding:"20px 24px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          background: T.surface,
+        }}>
           <div>
-            <h3 className="font-extrabold text-base" style={{ color: "#0f172a" }}>🏦 KHQR Payment</h3>
-            <p className="text-xs mt-0.5" style={{ color: "#64748b" }}>{invoiceId}</p>
+            <p style={{ color:T.text, fontWeight:800, fontSize:15, margin:0 }}>🏦 KHQR Payment</p>
+            <p style={{ color:T.muted, fontSize:11, marginTop:3, fontFamily:"monospace" }}>{invoiceId}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold"
-            style={{ background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" }}>✕</button>
+          <button onClick={onClose} style={{
+            width:32, height:32, borderRadius:10, border:`1px solid ${T.border}`,
+            background:T.bg, color:T.muted, cursor:"pointer", fontSize:14, fontWeight:700,
+            display:"flex", alignItems:"center", justifyContent:"center",
+          }}>✕</button>
         </div>
-        
-        <div className="flex flex-col items-center px-6 pt-6 pb-4 gap-4">
+
+        {/* Body */}
+        <div style={{ padding:"24px", display:"flex", flexDirection:"column", alignItems:"center", gap:16, background:T.bg }}>
           {loading && (
-            <div className="flex flex-col items-center gap-3 py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-              <p className="text-sm" style={{ color: "#64748b" }}>Generating QR code...</p>
+            <div style={{ textAlign:"center", padding:"32px 0" }}>
+              <div style={{
+                width:44, height:44, borderRadius:"50%",
+                border:`3px solid ${T.goldBdr}`, borderTopColor:T.gold,
+                animation:"spin 0.8s linear infinite", margin:"0 auto 12px",
+              }}/>
+              <p style={{ color:T.muted, fontSize:13 }}>Generating QR code…</p>
             </div>
           )}
-
-          {error && (
-            <div className="px-4 py-3 rounded-xl" style={{ background: "#fee2e2", border: "1px solid #fca5a5" }}>
-              <p className="text-sm font-semibold" style={{ color: "#991b1b" }}>{error}</p>
+          {error && !loading && (
+            <div style={{
+              background:T.redDim, border:`1px solid rgba(239,68,68,0.25)`,
+              borderRadius:12, padding:"12px 16px", width:"100%", textAlign:"center",
+            }}>
+              <p style={{ color:T.red, fontWeight:600, fontSize:13 }}>{error}</p>
             </div>
           )}
-
           {qrData && !loading && (
             <>
-              <div className="rounded-2xl p-4" style={{ background: "#f8fafc", border: "2px solid #e2e8f0" }}>
-                {qrData.qrCode ? (
-                  <QRCodeSVG 
-                    value={qrData.qrCode} 
-                    size={250}
-                    level="H"
-                    includeMargin={true}
-                  />
-                ) : (
-                  <div className="w-[250px] h-[250px] flex items-center justify-center bg-gray-100 rounded">
-                    <p className="text-sm text-gray-500">QR Code unavailable</p>
-                  </div>
-                )}
+              <div style={{
+                background:"#fff", borderRadius:20, padding:16,
+                boxShadow:`0 0 0 1.5px ${T.goldBdr}, ${T.shadowMd}`,
+              }}>
+                {qrData.qrCode
+                  ? <QRCodeSVG value={qrData.qrCode} size={220} level="H" includeMargin />
+                  : (
+                    <div style={{ width:220, height:220, display:"flex", alignItems:"center", justifyContent:"center", background:"#f9fafb", borderRadius:8 }}>
+                      <p style={{ color:T.faint, fontSize:13 }}>QR unavailable</p>
+                    </div>
+                  )
+                }
               </div>
 
-              <div className="px-6 py-3 rounded-2xl text-center w-full"
-                style={{ background: "#fffbeb", border: "1.5px solid #fcd34d" }}>
-                <p className="text-xs font-bold mb-1" style={{ color: "#92400e" }}>Amount to Pay / ចំនួនទឹកប្រាក់</p>
-                <p className="text-3xl font-extrabold" style={{ color: "#f59e0b" }}>
-                  ${parseFloat(amount).toFixed(2)}
+              <div style={{
+                background:T.goldDim, border:`1.5px solid ${T.goldBdr}`,
+                borderRadius:14, padding:"14px 24px", textAlign:"center", width:"100%",
+              }}>
+                <p style={{ color:T.goldDk, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>
+                  Amount to Pay / ចំនួនទឹកប្រាក់
+                </p>
+                <p style={{ color:T.gold, fontSize:32, fontWeight:900 }}>${parseFloat(amount).toFixed(2)}</p>
+              </div>
+
+              <div style={{
+                background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.2)",
+                borderRadius:10, padding:"8px 14px", width:"100%", textAlign:"center",
+              }}>
+                <p style={{ color:"#2563eb", fontSize:11, fontWeight:600 }}>
+                  Account: {qrData.accountNumber || "100169854"} (YIN KHIN)
                 </p>
               </div>
 
-              <div className="px-4 py-2 rounded-xl" style={{ background: "#dbeafe", border: "1px solid #93c5fd" }}>
-                <p className="text-xs font-semibold text-center" style={{ color: "#1e40af" }}>
-                  Account: {qrData.accountNumber || '100169854'} (YIN KHIN)
-                </p>
-              </div>
-
-              {/* {qrData.md5Hash && (
-                <div className="px-4 py-2 rounded-xl" style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
-                  <p className="text-xs font-semibold text-center mb-1" style={{ color: "#166534" }}>
-                    🔐 Verification Hash (MD5)
-                  </p>
-                  <p className="text-xs font-mono text-center break-all" style={{ color: "#15803d" }}>
-                    {qrData.md5Hash}
-                  </p>
-                  <p className="text-xs text-center mt-1" style={{ color: "#16a34a" }}>
-                    Use this to verify on Bakong gateway
-                  </p>
-                </div>
-              )} */}
-
-              <p className="text-xs text-center" style={{ color: "#94a3b8" }}>
+              <p style={{ color:T.muted, fontSize:11, textAlign:"center", lineHeight:1.7 }}>
                 ស្គែន QR ដើម្បីបង់ប្រាក់ · Scan to pay<br />
-                Works with Wing, ABA, ACLEDA, all banks<br />
-                <span style={{ color: "#f59e0b", fontWeight: "600" }}>After scanning, click "Confirm" button below</span>
+                Works with Wing, ABA, ACLEDA &amp; all banks<br />
+                <span style={{ color:T.gold, fontWeight:600 }}>After scanning, click Confirm below</span>
               </p>
             </>
           )}
         </div>
 
-        <div className="px-6 pb-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-sm"
-            style={{ background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0" }}>
-            Cancel / បោះបង់
-          </button>
-          <button 
-            onClick={() => {
-              showAlert('success', 'Payment confirmed! Sale completed.');
-              onPaymentConfirmed?.();
-              onClose();
+        {/* Footer */}
+        <div style={{ padding:"0 24px 24px", display:"flex", gap:10, background:T.surface }}>
+          <button onClick={onClose} style={{
+            flex:1, padding:"13px 0", borderRadius:12,
+            border:`1.5px solid ${T.border}`, background:T.bg,
+            color:T.muted, fontWeight:700, fontSize:13, cursor:"pointer",
+          }}>Cancel / បោះបង់</button>
+          <button
+            onClick={() => { showAlert("success","Payment confirmed!"); onPaymentConfirmed?.(); }}
+            style={{
+              flex:1, padding:"13px 0", borderRadius:12, border:"none",
+              background:"linear-gradient(135deg,#22c55e,#16a34a)",
+              color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer",
+              boxShadow:"0 4px 16px rgba(34,197,94,0.3)",
             }}
-            className="flex-1 py-3 rounded-xl font-bold text-sm"
-            style={{ background: "#10b981", color: "#fff", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}>
-            ✓ Confirm Payment 
-          </button>
+          >✓ Confirm Payment</button>
         </div>
       </div>
     </div>
   );
 };
 
-/* ══════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
    MAIN POS PAGE
-══════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════ */
 const PosPage = () => {
-  const [searchKeyword, setSearchKeyword]         = useState("");
-  const [selectedCategory, setSelectedCategory]   = useState("All Items");
-  const [cartItems, setCartItems]                 = useState([]);
-  const [cashReceived, setCashReceived]           = useState("");
-  const [promoCode, setPromoCode]                 = useState("");
-  const [paymentMethod, setPaymentMethod]         = useState("CASH");
-  const [currency, setCurrency]                   = useState("USD"); // USD or KHR
-  const [products, setProducts]                   = useState([]);
-  const [categories, setCategories]               = useState(["All Items"]);
-  const [paymentMethods, setPaymentMethods]       = useState([]);
-  const [loading, setLoading]                     = useState(false);
-  const [customers, setCustomers]                 = useState([]);
-  const [selectedCustomer, setSelectedCustomer]   = useState(null);
+  const [searchKeyword,     setSearchKeyword]     = useState("");
+  const [selectedCategory,  setSelectedCategory]  = useState("All Items");
+  const [cartItems,         setCartItems]         = useState([]);
+  const [cashReceived,      setCashReceived]      = useState("");
+  const [promoCode,         setPromoCode]         = useState("");
+  const [paymentMethod,     setPaymentMethod]     = useState("CASH");
+  const [products,          setProducts]          = useState([]);
+  const [categories,        setCategories]        = useState(["All Items"]);
+  const [paymentMethods,    setPaymentMethods]    = useState([]);
+  const [loading,           setLoading]           = useState(false);
+  const [customers,         setCustomers]         = useState([]);
+  const [selectedCustomer,  setSelectedCustomer]  = useState(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [customerSearch, setCustomerSearch]       = useState("");
-  const [showQrModal, setShowQrModal]             = useState(false);
-  const [storeInfo, setStoreInfo]                 = useState(null);
+  const [customerSearch,    setCustomerSearch]    = useState("");
+  const [showQrModal,       setShowQrModal]       = useState(false);
+  const [storeInfo,         setStoreInfo]         = useState(null);
+  const [addedId,           setAddedId]           = useState(null);
 
   const invoiceId = useMemo(() => `INV-${Date.now()}`, []);
-  
-  // Exchange rate: 1 USD = 4100 KHR (approximate)
-  const exchangeRate = 4100;
+  const orderNo   = useMemo(() => `#${String(Date.now()).slice(-6)}`, []);
 
   useEffect(() => {
     loadJsPDF();
@@ -243,7 +266,7 @@ const PosPage = () => {
         setPaymentMethods(active);
         if (active.length > 0) setPaymentMethod(active[0].code);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("fetchPaymentMethods:", e); }
   };
 
   const fetchCustomers = async () => {
@@ -251,23 +274,16 @@ const PosPage = () => {
       const r = await request("/api/customers", "GET");
       const d = r.data || r.customers || [];
       if (r.success && d.length > 0) setCustomers(d);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("fetchCustomers:", e); }
   };
 
   const fetchStoreInfo = async () => {
     try {
       const r = await request("/api/store-info", "GET");
-      if (r.success && r.data) {
-        setStoreInfo(r.data);
-      }
+      setStoreInfo(r.success && r.data ? r.data : { store_name:"MY STORE", email:"", website:"" });
     } catch (e) {
-      console.error("Failed to fetch store info:", e);
-      // Set default store info if fetch fails
-      setStoreInfo({
-        store_name: "MY STORE",
-        email: "",
-        website: ""
-      });
+      console.error("fetchStoreInfo:", e);
+      setStoreInfo({ store_name:"MY STORE", email:"", website:"" });
     }
   };
 
@@ -280,9 +296,11 @@ const PosPage = () => {
     [searchKeyword, selectedCategory, products]
   );
 
-  const addToCart = (product) => {
+  const addToCart = useCallback((product) => {
     const stock = parseInt(product.qty || 0);
     if (stock <= 0) { showAlert("error", `${product.prd_name} is out of stock!`); return; }
+    setAddedId(product.prd_id);
+    setTimeout(() => setAddedId(null), 400);
     setCartItems((prev) => {
       const found = prev.find((i) => i.prd_id === product.prd_id);
       if (found) {
@@ -291,7 +309,7 @@ const PosPage = () => {
       }
       return [...prev, { ...product, qty: 1 }];
     });
-  };
+  }, []);
 
   const updateCartQty = (prdId, delta) =>
     setCartItems((prev) =>
@@ -304,63 +322,23 @@ const PosPage = () => {
 
   const removeItem = (id) => setCartItems((prev) => prev.filter((i) => i.prd_id !== id));
 
-  // Currency formatting helper
-  const formatCurrency = (amount, curr = currency) => {
-    const num = parseFloat(amount) || 0;
-    if (curr === "KHR") {
-      return `${Math.round(num).toLocaleString('en-US')}៛`; // Riel symbol
-    }
-    // USD - support up to 3 decimal places for precision
-    return `$${num.toFixed(3).replace(/\.?0+$/, '')}`; // Remove trailing zeros
-  };
-
-  // Convert between currencies
-  const convertCurrency = (amount, fromCurr, toCurr) => {
-    if (fromCurr === toCurr) return amount;
-    if (fromCurr === "USD" && toCurr === "KHR") return amount * exchangeRate;
-    if (fromCurr === "KHR" && toCurr === "USD") return amount / exchangeRate;
-    return amount;
-  };
-
-  const subtotal   = useMemo(() => {
-    const total = cartItems.reduce((s, i) => {
-      const price = parseFloat(i.unit_cost || i.price || 0) || 0;
-      const qty = parseInt(i.qty || 0) || 0;
-      return s + (qty * price);
-    }, 0);
-    return isNaN(total) ? 0 : Math.max(0, total); // Ensure non-negative
+  const subtotal = useMemo(() => {
+    const t = cartItems.reduce((s, i) =>
+      s + (parseInt(i.qty) || 0) * (parseFloat(i.unit_cost || i.price || 0) || 0), 0);
+    return isNaN(t) ? 0 : Math.max(0, t);
   }, [cartItems]);
+
   const tax        = 0;
   const discount   = 0;
-  const grandTotal = Math.max(0, subtotal + tax - discount); // Ensure non-negative
-  
-  // Convert grand total to selected currency for display
-  const grandTotalInCurrency = currency === "KHR" ? grandTotal * exchangeRate : grandTotal;
-  
+  const grandTotal = Math.max(0, subtotal + tax - discount);
   const paidAmount = parseFloat(cashReceived || "0") || 0;
-  const change     = Math.max(0, paidAmount - grandTotalInCurrency);
-  const orderNo    = `#${String(Date.now()).slice(-6)}`;
+  const change     = Math.max(0, paidAmount - grandTotal);
 
   const handleCheckout = async () => {
-    if (!cartItems.length) { showAlert("warning", "Cart is empty"); return; }
-    if (paymentMethod === "CASH" && paidAmount < grandTotalInCurrency) { 
-      showAlert("warning", `Cash received is not enough. Need ${formatCurrency(grandTotalInCurrency)}`); 
-      return; 
-    }
-    
-    // For KHQR payment, show QR modal first
-    const isKHQR = ["KHQR", "QRCODE", "QRPAY", "QR"].includes(paymentMethod?.toUpperCase());
-    if (isKHQR) {
-      setShowQrModal(true);
-      return;
-    }
-    
-    // Validate totals before sending
-    if (isNaN(grandTotal) || grandTotal < 0) {
-      showAlert("error", "Invalid order total. Please check cart items.");
-      return;
-    }
-
+    if (!cartItems.length)                                                          { showAlert("warning", "Cart is empty"); return; }
+    if (paymentMethod === "CASH" && paidAmount < grandTotal)                        { showAlert("warning", `Need $${grandTotal.toFixed(2)}`); return; }
+    if (["KHQR","QRCODE","QRPAY","QR"].includes(paymentMethod?.toUpperCase()))      { setShowQrModal(true); return; }
+    if (isNaN(grandTotal) || grandTotal < 0)                                        { showAlert("error", "Invalid total"); return; }
     await completeSale();
   };
 
@@ -376,138 +354,212 @@ const PosPage = () => {
         pay_method:  paymentMethod,
         customer_id: selectedCustomer?.customer_id || null,
         create_by:   storeInfo?.website || "Sale Staff",
-        items: cartItems.map((i) => ({ 
-          prd_id: i.prd_id, 
-          qty: i.qty, 
-          price: parseFloat(parseFloat(i.unit_cost || i.price || 0).toFixed(2))
+        items: cartItems.map((i) => ({
+          prd_id: i.prd_id,
+          qty:    i.qty,
+          price:  parseFloat(parseFloat(i.unit_cost || i.price || 0).toFixed(2)),
         })),
       });
-
       if (res.success) {
         await generateInvoicePDF({
           invoiceId, saleDate: formatCambodiaDate(new Date()),
           items: [...cartItems], subtotal, tax, discount, grandTotal,
           paymentMethod, cashReceived: paidAmount, change,
-          customer: selectedCustomer,
-          storeInfo: storeInfo,
+          customer: selectedCustomer, storeInfo,
         });
         setCartItems([]); setCashReceived(""); setPromoCode(""); setSelectedCustomer(null);
         fetchProducts();
         showAlert("success", "Sale completed — PDF downloaded!");
-      } else {
-        showAlert("error", res.message || "Failed to complete sale");
-      }
+      } else { showAlert("error", res.message || "Failed to complete sale"); }
     } catch (e) {
       console.error(e);
       showAlert("error", "Failed to complete sale");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const resolvedMethods = paymentMethods.length > 0
     ? paymentMethods
-    : [{ code: "CASH", type: "Cash" }, { code: "QRCODE", type: "QR Code" }];
+    : [{ code:"CASH", type:"Cash" }, { code:"QRCODE", type:"QR Code" }];
 
   const isQR = ["QRCODE","QRPAY","QR"].includes(paymentMethod?.toUpperCase());
 
-  const C = {
-    bg: "#f8fafc", panel: "#ffffff", alt: "#f1f5f9",
-    border: "#e2e8f0", text: "#0f172a", muted: "#64748b", faint: "#94a3b8",
-    accent: "#f59e0b", accentBg: "#fffbeb", accentBdr: "#fcd34d",
-    green: "#16a34a", orange: "#ea580c", red: "#dc2626",
-  };
-  const inp = { background: C.alt, border: `1.5px solid ${C.border}`, color: C.text, outline: "none", borderRadius: 12 };
-
+  /* ──────────────────────────────────────────
+     RENDER
+  ────────────────────────────────────────── */
   return (
     <>
       <FontLink />
       <style>{`
-        *, *::before, *::after { font-family: 'Plus Jakarta Sans', sans-serif !important; box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        *, *::before, *::after { font-family:'Outfit',sans-serif !important; box-sizing:border-box; }
+        @keyframes spin    { to { transform:rotate(360deg); } }
+        @keyframes fadeIn  { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+        @keyframes popIn   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+        input::placeholder { color:#c0c4ce !important; }
       `}</style>
 
       {showQrModal && (
-        <QrModal 
-          amount={grandTotal} 
-          invoiceId={invoiceId} 
+        <QrModal
+          amount={grandTotal}
+          invoiceId={invoiceId}
           onClose={() => setShowQrModal(false)}
-          onPaymentConfirmed={async () => {
-            await completeSale();
-          }}
+          onPaymentConfirmed={async () => { setShowQrModal(false); await completeSale(); }}
         />
       )}
 
-      <div className="flex h-screen overflow-hidden" style={{ background: C.bg }}>
+      <div style={{ display:"flex", height:"100vh", overflow:"hidden", background:T.bg }}>
 
-        {/* ══ LEFT — Products ════════════════════════════════════════ */}
-        <div className="flex flex-col flex-1 min-w-0" style={{ background: C.panel, borderRight: `1px solid ${C.border}` }}>
-          <div className="px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-            <div className="flex items-center justify-between mb-4">
+        {/* ══════════════════════════════
+            LEFT — Products
+        ══════════════════════════════ */}
+        <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", background:T.surface, borderRight:`1px solid ${T.border}` }}>
+
+          {/* Top bar */}
+          <div style={{ padding:"18px 24px 14px", borderBottom:`1px solid ${T.border}`, background:T.surface }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <div>
-                <h1 className="text-lg font-extrabold" style={{ color: C.text }}>🏪 Point of Sale</h1>
-                <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+                <h1 style={{ color:T.text, fontSize:20, fontWeight:900, margin:0, letterSpacing:"-0.02em" }}>
+                  🏪 Point of Sale
+                </h1>
+                <p style={{ color:T.muted, fontSize:11, marginTop:3 }}>
                   {formatCambodiaDateLong(new Date())}
                 </p>
               </div>
-              <div className="relative">
-                <input type="text" placeholder="Search products…" value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="text-sm w-56 px-4 py-2.5 pl-10 rounded-xl transition-all" style={inp}
-                  onFocus={(e) => (e.target.style.borderColor = C.accentBdr)}
-                  onBlur={(e)  => (e.target.style.borderColor = C.border)} />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: C.faint }}>🔍</span>
+              {/* Search */}
+              <div style={{ position:"relative" }}>
+                <span style={{
+                  position:"absolute", left:12, top:"50%", transform:"translateY(-50%)",
+                  color:T.faint, fontSize:14, pointerEvents:"none",
+                }}>🔍</span>
+                <input
+                  type="text" placeholder="Search products…"
+                  value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)}
+                  style={{
+                    background:T.bg, border:`1.5px solid ${T.border}`, borderRadius:12,
+                    color:T.text, fontSize:13, fontWeight:500,
+                    padding:"10px 16px 10px 36px", width:220, outline:"none",
+                    transition:"border-color 0.2s, box-shadow 0.2s",
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = T.gold; e.target.style.boxShadow = `0 0 0 3px ${T.goldDim}`; }}
+                  onBlur={(e)  => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }}
+                />
               </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
-              {categories.map((cat) => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                  style={selectedCategory === cat
-                    ? { background: C.accent, color: "#fff", border: `1.5px solid ${C.accent}` }
-                    : { background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}>
-                  {cat}
-                </button>
-              ))}
+
+            {/* Category tabs */}
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {categories.map((cat) => {
+                const active = selectedCategory === cat;
+                return (
+                  <button key={cat} onClick={() => setSelectedCategory(cat)} style={{
+                    padding:"6px 14px", borderRadius:8, fontSize:11, fontWeight:700,
+                    cursor:"pointer", transition:"all 0.18s", letterSpacing:"0.02em",
+                    background: active ? T.gold : T.bg,
+                    color:      active ? "#fff" : T.muted,
+                    border:     active ? "none" : `1px solid ${T.border}`,
+                    boxShadow:  active ? T.shadowGold : "none",
+                  }}>{cat}</button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5" style={{ background: C.bg }}>
+          {/* Grid */}
+          <div style={{ flex:1, overflowY:"auto", padding:20, background:T.bg }}>
             {products.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3">
-                <span className="text-4xl animate-pulse">⏳</span>
-                <p className="text-sm font-semibold" style={{ color: C.faint }}>Loading inventory…</p>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:12 }}>
+                <span style={{ fontSize:36, animation:"spin 2s linear infinite", display:"block" }}>⚙️</span>
+                <p style={{ color:T.faint, fontSize:13, fontWeight:600 }}>Loading inventory…</p>
               </div>
             ) : visibleProducts.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-sm" style={{ color: C.faint }}>No products found</p>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%" }}>
+                <p style={{ color:T.faint, fontSize:13 }}>No products found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-                {visibleProducts.map((product) => {
-                  const stock = parseInt(product.qty || 0);
-                  const isOut = stock <= 0; const isLow = !isOut && stock <= 10;
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:14 }}>
+                {visibleProducts.map((product, idx) => {
+                  const stock   = parseInt(product.qty || 0);
+                  const isOut   = stock <= 0;
+                  const isLow   = !isOut && stock <= 10;
+                  const isAdded = addedId === product.prd_id;
                   return (
-                    <button key={product.prd_id} type="button"
-                      onClick={() => !isOut && addToCart(product)} disabled={isOut}
-                      className="relative text-left rounded-2xl p-4 transition-all active:scale-95"
-                      style={{ background: C.panel, border: `1.5px solid ${C.border}`,
-                        opacity: isOut ? 0.5 : 1, cursor: isOut ? "not-allowed" : "pointer",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                      onMouseEnter={(e) => { if (!isOut) { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.boxShadow = "0 4px 16px rgba(245,158,11,0.15)"; } }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; }}>
-                     
-                      <div className="w-25 h-25 relative rounded-xl flex items-center justify-center mb-3 " style={{ background: C.alt }}>
-                        {product.photo ? <img src={product.photo} alt={product.prd_name} className={` w-full h-full  object-cover rounded-xl ${isOut ? "grayscale" : ""}`} /> : <ProductIcon category={product.category_id} />}
+                    <button
+                      key={product.prd_id} type="button"
+                      onClick={() => !isOut && addToCart(product)}
+                      disabled={isOut}
+                      style={{
+                        background:  isAdded ? "rgba(245,160,40,0.06)" : T.card,
+                        border:      `1.5px solid ${isAdded ? T.goldBdr : T.border}`,
+                        borderRadius:16, padding:14,
+                        cursor:      isOut ? "not-allowed" : "pointer",
+                        opacity:     isOut ? 0.5 : 1,
+                        textAlign:   "left", position:"relative",
+                        transition:  "all 0.18s",
+                        animation:   `fadeIn 0.3s ease both`,
+                        animationDelay: `${idx * 0.03}s`,
+                        boxShadow:   T.shadow,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isOut) {
+                          e.currentTarget.style.borderColor = T.gold;
+                          e.currentTarget.style.boxShadow  = T.shadowGold;
+                          e.currentTarget.style.transform  = "translateY(-2px)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = T.border;
+                        e.currentTarget.style.boxShadow  = T.shadow;
+                        e.currentTarget.style.transform  = "none";
+                      }}
+                    >
+                      {/* OUT badge */}
+                      {isOut && (
+                        <span style={{
+                          position:"absolute", top:10, right:10,
+                          background:T.red, color:"#fff",
+                          fontSize:9, fontWeight:900, padding:"3px 7px",
+                          borderRadius:6, letterSpacing:"0.06em",
+                        }}>OUT</span>
+                      )}
+
+                      {/* Product image */}
+                      <div style={{
+                        width:"100%", height:110, borderRadius:12, overflow:"hidden",
+                        background:T.bg, display:"flex", alignItems:"center",
+                        justifyContent:"center", marginBottom:12,
+                      }}>
+                        {product.photo ? (
+                          <img
+                            src={product.photo} alt={product.prd_name}
+                            style={{
+                              width:"100%", height:"100%", objectFit:"cover",
+                              filter: isOut ? "grayscale(1)" : "none",
+                              transition:"transform 0.3s",
+                            }}
+                            onMouseEnter={(e) => { if (!isOut) e.target.style.transform = "scale(1.06)"; }}
+                            onMouseLeave={(e) => { e.target.style.transform = "scale(1)"; }}
+                          />
+                        ) : (
+                          <ProductIcon category={product.category_id} />
+                        )}
                       </div>
-                       {isOut && <span className=" absolute top-1  right-3 text-white text-[10px] font-black px-2 py-0.5 rounded-md" style={{ background: C.red }}>OUT</span>}
-                      <p className="text-sm font-bold truncate mb-1" style={{ color: C.text }}>{product.prd_name}</p>
-                      <p className="text-[11px] mb-2" style={{ color: C.faint }}>{product.prd_id}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-extrabold" style={{ color: C.accent }}>${parseFloat(product.unit_cost || 0).toFixed(2)}</span>
-                        <span className="text-[11px] font-bold" style={{ color: isOut ? C.red : isLow ? C.orange : C.green }}>
+
+                      <p style={{
+                        color:T.text, fontSize:13, fontWeight:700, margin:"0 0 2px",
+                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                      }}>{product.prd_name}</p>
+                      <p style={{ color:T.faint, fontSize:10, marginBottom:10, fontFamily:"monospace" }}>
+                        {product.prd_id}
+                      </p>
+
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <span style={{ color:T.gold, fontSize:15, fontWeight:800 }}>
+                          ${parseFloat(product.unit_cost || 0).toFixed(2)}
+                        </span>
+                        <span style={{ color: isOut ? T.red : isLow ? T.orange : T.green, fontSize:10, fontWeight:700 }}>
                           {isOut ? "Out of stock" : `${stock} left`}
                         </span>
                       </div>
@@ -519,101 +571,162 @@ const PosPage = () => {
           </div>
         </div>
 
-        {/* ══ MIDDLE — Cart ══════════════════════════════════════════ */}
-        <div className="flex flex-col w-[22rem]" style={{ background: C.panel, borderRight: `1px solid ${C.border}` }}>
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.border}` }}>
+        {/* ══════════════════════════════
+            MIDDLE — Cart
+        ══════════════════════════════ */}
+        <div style={{ width:340, display:"flex", flexDirection:"column", background:T.surface, borderRight:`1px solid ${T.border}` }}>
+
+          {/* Header */}
+          <div style={{
+            padding:"18px 20px 16px", borderBottom:`1px solid ${T.border}`,
+            display:"flex", alignItems:"center", justifyContent:"space-between",
+          }}>
             <div>
-              <h2 className="font-extrabold text-sm" style={{ color: C.text }}>Active Cart</h2>
-              <p className="text-xs mt-0.5" style={{ color: C.muted }}>Order {orderNo}</p>
+              <p style={{ color:T.text, fontSize:14, fontWeight:800, margin:0 }}>Active Cart</p>
+              <p style={{ color:T.muted, fontSize:11, marginTop:2, fontFamily:"monospace" }}>Order {orderNo}</p>
             </div>
-            <button type="button" onClick={() => setCartItems([])}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all"
-              style={{ background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.color = C.red; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = C.alt; e.currentTarget.style.color = C.muted; }}>🗑</button>
+            <button type="button" onClick={() => setCartItems([])} title="Clear cart" style={{
+              width:32, height:32, borderRadius:10, border:`1px solid ${T.border}`,
+              background:T.bg, color:T.muted, cursor:"pointer", fontSize:14,
+              display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background=T.redDim; e.currentTarget.style.color=T.red; e.currentTarget.style.borderColor="rgba(239,68,68,0.25)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background=T.bg; e.currentTarget.style.color=T.muted; e.currentTarget.style.borderColor=T.border; }}
+            >🗑</button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2" style={{ background: C.bg }}>
+          {/* Items */}
+          <div style={{ flex:1, overflowY:"auto", padding:"12px 16px", background:T.bg, display:"flex", flexDirection:"column", gap:8 }}>
             {cartItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full pb-8 gap-3">
-                <span className="text-5xl" style={{ opacity: 0.2 }}>🛒</span>
-                <p className="text-xs font-semibold" style={{ color: C.faint }}>Cart is empty</p>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:10 }}>
+                <span style={{ fontSize:52, opacity:0.18 }}>🛒</span>
+                <p style={{ color:T.faint, fontSize:12, fontWeight:600 }}>Cart is empty</p>
               </div>
             ) : cartItems.map((item) => (
-              <div key={item.prd_id} className="flex items-center gap-3 rounded-xl p-3"
-                style={{ background: C.panel, border: `1.5px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.alt }}>
-                  {item.photo ? <img src={item.photo} alt={item.prd_name} className="w-full h-full object-cover rounded-lg" /> : <ProductIcon category={item.category_id} />}
+              <div key={item.prd_id} style={{
+                background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14,
+                padding:"12px 14px", display:"flex", alignItems:"center", gap:12,
+                animation:"fadeIn 0.2s ease both", transition:"border-color 0.15s, box-shadow 0.15s",
+                boxShadow: T.shadow,
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor=T.goldBdr; e.currentTarget.style.boxShadow=`0 2px 10px rgba(245,160,40,0.1)`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.boxShadow=T.shadow; }}
+              >
+                {/* Thumbnail */}
+                <div style={{
+                  width:46, height:46, borderRadius:10, overflow:"hidden",
+                  background:T.bg, flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                }}>
+                  {item.photo
+                    ? <img src={item.photo} alt={item.prd_name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : <ProductIcon category={item.category_id} />
+                  }
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold truncate" style={{ color: C.text }}>{item.prd_name}</p>
-                  <p className="text-[10px]" style={{ color: C.faint }}>{item.prd_id}</p>
-                  <p className="text-[11px] font-extrabold mt-0.5" style={{ color: C.accent }}>
+
+                {/* Info */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ color:T.text, fontSize:12, fontWeight:700, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {item.prd_name}
+                  </p>
+                  <p style={{ color:T.muted, fontSize:10, margin:"1px 0 0", fontFamily:"monospace" }}>{item.prd_id}</p>
+                  <p style={{ color:T.gold, fontSize:12, fontWeight:800, marginTop:3 }}>
                     ${(item.qty * parseFloat(item.unit_cost || item.price || 0)).toFixed(2)}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button type="button" onClick={() => updateCartQty(item.prd_id, -1)}
-                    className="w-7 h-7 rounded-lg text-sm font-black flex items-center justify-center"
-                    style={{ background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}>−</button>
-                  <span className="text-xs font-extrabold w-6 text-center" style={{ color: C.text }}>{item.qty}</span>
-                  <button type="button" onClick={() => updateCartQty(item.prd_id, 1)}
-                    className="w-7 h-7 rounded-lg text-sm font-black flex items-center justify-center"
-                    style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accentBdr}` }}>+</button>
-                  <button type="button" onClick={() => removeItem(item.prd_id)}
-                    className="w-6 h-6 rounded-lg text-xs flex items-center justify-center ml-1"
-                    style={{ color: C.faint }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = C.faint)}>×</button>
+
+                {/* Qty */}
+                <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                  <button type="button" onClick={() => updateCartQty(item.prd_id,-1)} style={{
+                    width:26, height:26, borderRadius:8, border:`1.5px solid ${T.border}`,
+                    background:T.bg, color:T.muted, cursor:"pointer", fontSize:16, fontWeight:700,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                  }}>−</button>
+                  <span style={{ color:T.text, fontSize:13, fontWeight:800, minWidth:20, textAlign:"center" }}>
+                    {item.qty}
+                  </span>
+                  <button type="button" onClick={() => updateCartQty(item.prd_id,1)} style={{
+                    width:26, height:26, borderRadius:8, border:`1.5px solid ${T.goldBdr}`,
+                    background:T.goldDim, color:T.gold, cursor:"pointer", fontSize:16, fontWeight:700,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                  }}>+</button>
+                  <button type="button" onClick={() => removeItem(item.prd_id)} style={{
+                    width:22, height:22, borderRadius:6, border:"none",
+                    background:"transparent", color:T.faint, cursor:"pointer", fontSize:16, marginLeft:2,
+                    display:"flex", alignItems:"center", justifyContent:"center", transition:"color 0.15s",
+                  }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color=T.red)}
+                    onMouseLeave={(e) => (e.currentTarget.style.color=T.faint)}
+                  >×</button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="px-4 pb-4 pt-3" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
-            <div className="flex gap-2">
-              <input type="text" placeholder="Promo code…" value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                className="flex-1 text-xs px-3 py-2.5 rounded-xl transition-all" style={inp}
-                onFocus={(e) => (e.target.style.borderColor = C.accentBdr)}
-                onBlur={(e)  => (e.target.style.borderColor = C.border)} />
-              <button type="button" className="px-4 py-2 rounded-xl text-xs font-bold"
-                style={{ background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}>Apply</button>
+          {/* Promo */}
+          <div style={{ padding:"12px 16px 16px", borderTop:`1px solid ${T.border}`, background:T.surface }}>
+            <div style={{ display:"flex", gap:8 }}>
+              <input
+                type="text" placeholder="Promo code…"
+                value={promoCode} onChange={(e) => setPromoCode(e.target.value)}
+                style={{
+                  flex:1, background:T.bg, border:`1.5px solid ${T.border}`, borderRadius:10,
+                  color:T.text, fontSize:12, fontWeight:500, padding:"9px 14px", outline:"none",
+                  transition:"border-color 0.2s",
+                }}
+                onFocus={(e) => (e.target.style.borderColor=T.gold)}
+                onBlur={(e)  => (e.target.style.borderColor=T.border)}
+              />
+              <button type="button" style={{
+                padding:"9px 14px", borderRadius:10, border:`1.5px solid ${T.border}`,
+                background:T.bg, color:T.muted, fontSize:12, fontWeight:700, cursor:"pointer",
+              }}>Apply</button>
             </div>
           </div>
         </div>
 
-        {/* ══ RIGHT — Payment ════════════════════════════════════════ */}
-        <aside className="flex flex-col w-72" style={{ background: C.panel, borderLeft: `1px solid ${C.border}` }}>
-          <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-            <h2 className="font-extrabold text-sm" style={{ color: C.text }}>Payment Details</h2>
+        {/* ══════════════════════════════
+            RIGHT — Payment
+        ══════════════════════════════ */}
+        <aside style={{ width:288, display:"flex", flexDirection:"column", background:T.surface, borderLeft:`1px solid ${T.border}` }}>
+          <div style={{ padding:"18px 20px 14px", borderBottom:`1px solid ${T.border}` }}>
+            <p style={{ color:T.text, fontSize:14, fontWeight:800, margin:0 }}>Payment Details</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-            {/* breakdown */}
-            <div className="space-y-2.5">
-              {[
-                ["Subtotal",  `$${subtotal.toFixed(2)}`],
-                ["Tax (0%)", `$${(0).toFixed(2)}`],
-                ["Discount", `-$${discount.toFixed(2)}`],
-              ].map(([l, v]) => (
-                <div key={l} className="flex justify-between">
-                  <span className="text-xs" style={{ color: C.muted }}>{l}</span>
-                  <span className="text-xs font-semibold" style={{ color: C.text }}>{v}</span>
+          <div style={{ flex:1, overflowY:"auto", padding:"16px 20px", display:"flex", flexDirection:"column", gap:18 }}>
+
+            {/* Summary rows */}
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {[["Subtotal",`$${subtotal.toFixed(2)}`],["Tax (0%)","$0.00"],[`Discount`,`-$${discount.toFixed(2)}`]].map(([l,v]) => (
+                <div key={l} style={{ display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ color:T.muted, fontSize:12 }}>{l}</span>
+                  <span style={{ color:T.sub, fontSize:12, fontWeight:600 }}>{v}</span>
                 </div>
               ))}
-              {/* highlighted total */}
-              <div className="flex justify-between items-center px-4 py-3 rounded-2xl mt-1"
-                style={{ background: C.accentBg, border: `1.5px solid ${C.accentBdr}` }}>
-                <span className="text-sm font-bold" style={{ color: "#92400e" }}>Total Payable</span>
-                <span className="text-2xl font-extrabold" style={{ color: C.accent }}>${grandTotal.toFixed(2)}</span>
+
+              {/* Total */}
+              <div style={{
+                display:"flex", justifyContent:"space-between", alignItems:"center",
+                background:T.goldDim, border:`1.5px solid ${T.goldBdr}`,
+                borderRadius:14, padding:"14px 16px", marginTop:4,
+              }}>
+                <span style={{ color:T.goldDk, fontSize:13, fontWeight:700 }}>Total Payable</span>
+                <span style={{ color:T.gold, fontSize:26, fontWeight:900, letterSpacing:"-0.02em" }}>
+                  ${grandTotal.toFixed(2)}
+                </span>
               </div>
             </div>
 
-            {/* payment methods */}
+            {/* Payment method buttons */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: C.faint }}>Payment Method</p>
-              <div className={`grid gap-2 ${resolvedMethods.length <= 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+              <p style={{ color:T.faint, fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:10 }}>
+                Payment Method
+              </p>
+              <div style={{
+                display:"grid",
+                gridTemplateColumns: resolvedMethods.length <= 2 ? "1fr 1fr" : "repeat(3,1fr)",
+                gap:8,
+              }}>
                 {resolvedMethods.map((method) => {
                   const active  = paymentMethod === method.code;
                   const isQrBtn = ["QRCODE","QRPAY","QR"].includes(method.code?.toUpperCase());
@@ -621,11 +734,17 @@ const PosPage = () => {
                   return (
                     <button key={method.code} type="button"
                       onClick={() => { setPaymentMethod(method.code); if (isQrBtn) setShowQrModal(true); }}
-                      className="py-3 rounded-xl text-xs font-bold flex flex-col items-center gap-1.5 transition-all"
-                      style={active
-                        ? { background: C.accent, color: "#fff", border: `1.5px solid ${C.accent}`, boxShadow: "0 4px 12px rgba(245,158,11,0.3)" }
-                        : { background: C.alt, color: C.muted, border: `1.5px solid ${C.border}` }}>
-                      <span className="text-lg">{icon}</span>
+                      style={{
+                        padding:"12px 6px", borderRadius:12, cursor:"pointer",
+                        display:"flex", flexDirection:"column", alignItems:"center", gap:6,
+                        fontSize:11, fontWeight:700, transition:"all 0.18s",
+                        background: active ? T.gold      : T.bg,
+                        color:      active ? "#fff"      : T.muted,
+                        border:     active ? "none"       : `1.5px solid ${T.border}`,
+                        boxShadow:  active ? T.shadowGold : T.shadow,
+                      }}
+                    >
+                      <span style={{ fontSize:20 }}>{icon}</span>
                       <span>{method.type}</span>
                     </button>
                   );
@@ -635,136 +754,216 @@ const PosPage = () => {
 
             {/* QR inline preview */}
             {isQR && (
-              <button type="button" onClick={() => setShowQrModal(true)}
-                className="w-full rounded-2xl p-4 flex items-center gap-4 transition-all"
-                style={{ background: C.accentBg, border: `1.5px solid ${C.accentBdr}` }}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 16px rgba(245,158,11,0.2)")}
-                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}>
+              <button type="button" onClick={() => setShowQrModal(true)} style={{
+                background:T.goldDim, border:`1.5px solid ${T.goldBdr}`,
+                borderRadius:14, padding:"14px 16px", width:"100%",
+                display:"flex", alignItems:"center", gap:14,
+                cursor:"pointer", transition:"all 0.2s",
+              }}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow=T.shadowGold)}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow="none")}
+              >
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`PAY|${invoiceId}|${grandTotal}`)}&bgcolor=fffbeb&color=0f172a&margin=4`}
-                  alt="QR" className="rounded-lg shrink-0"
-                  style={{ width: 54, height: 54, border: `1px solid ${C.accentBdr}` }} />
-                <div className="text-left flex-1">
-                  <p className="text-xs font-extrabold" style={{ color: "#92400e" }}>Tap to open full QR</p>
-                  <p className="text-[11px] mt-0.5 font-bold" style={{ color: C.accent }}>${grandTotal.toFixed(2)}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "#b45309" }}>ចុចដើម្បីបង្ហាញ QR ពេញ</p>
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`PAY|${invoiceId}|${grandTotal}`)}&bgcolor=fffbeb&color=d4820a&margin=4`}
+                  alt="QR preview"
+                  style={{ width:52, height:52, borderRadius:10, flexShrink:0, border:`1px solid ${T.goldBdr}` }}
+                />
+                <div style={{ textAlign:"left", flex:1 }}>
+                  <p style={{ color:T.goldDk, fontSize:11, fontWeight:800, margin:0 }}>Tap to open full QR</p>
+                  <p style={{ color:T.gold, fontSize:14, fontWeight:900, margin:"3px 0 2px" }}>${grandTotal.toFixed(2)}</p>
+                  <p style={{ color:T.muted, fontSize:10 }}>ចុចដើម្បីបង្ហាញ QR ពេញ</p>
                 </div>
-                <span style={{ color: C.accent, fontSize: 18 }}>↗</span>
+                <span style={{ color:T.gold, fontSize:18 }}>↗</span>
               </button>
             )}
 
-            {/* cash received */}
+            {/* Cash received */}
             {!isQR && (
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest mb-2 block" style={{ color: C.faint }}>Cash Received</label>
-                <input type="number" min="0" step="0.01" value={cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value)}
+                <label style={{ color:T.faint, fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.12em", display:"block", marginBottom:8 }}>
+                  Cash Received
+                </label>
+                <input
+                  type="number" min="0" step="0.01"
+                  value={cashReceived} onChange={(e) => setCashReceived(e.target.value)}
                   placeholder="0.00" disabled={paymentMethod !== "CASH"}
-                  className="w-full text-right text-xl font-extrabold px-4 py-3 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={inp}
-                  onFocus={(e) => (e.target.style.borderColor = C.accentBdr)}
-                  onBlur={(e)  => (e.target.style.borderColor = C.border)} />
-                <div className="flex justify-between mt-2">
-                  <span className="text-xs" style={{ color: C.muted }}>Change</span>
-                  <span className="text-xs font-extrabold" style={{ color: change > 0 ? C.green : C.faint }}>${change.toFixed(2)}</span>
+                  style={{
+                    width:"100%", background:T.bg, border:`1.5px solid ${T.border}`,
+                    borderRadius:12, color:T.text, fontSize:22, fontWeight:800,
+                    padding:"12px 16px", outline:"none", textAlign:"right",
+                    opacity: paymentMethod !== "CASH" ? 0.4 : 1,
+                    cursor:  paymentMethod !== "CASH" ? "not-allowed" : "text",
+                    transition:"border-color 0.2s, box-shadow 0.2s",
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor=T.gold; e.target.style.boxShadow=`0 0 0 3px ${T.goldDim}`; }}
+                  onBlur={(e)  => { e.target.style.borderColor=T.border; e.target.style.boxShadow="none"; }}
+                />
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
+                  <span style={{ color:T.muted, fontSize:12 }}>Change</span>
+                  <span style={{ color: change > 0 ? T.green : T.faint, fontSize:12, fontWeight:800 }}>
+                    ${change.toFixed(2)}
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* customer */}
+            {/* Customer */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Customer</p>
-              <button type="button" onClick={() => setShowCustomerModal(true)}
-                className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition-all"
-                style={{ background: C.alt, border: `1.5px solid ${C.border}` }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.accent)}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}>
-                <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: C.text }}>
+              <p style={{ color:T.faint, fontSize:9, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.12em", marginBottom:8 }}>
+                Customer
+              </p>
+              <button type="button" onClick={() => setShowCustomerModal(true)} style={{
+                width:"100%", background:T.bg, border:`1.5px solid ${T.border}`,
+                borderRadius:12, padding:"12px 16px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+                transition:"border-color 0.18s, box-shadow 0.18s",
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor=T.gold; e.currentTarget.style.boxShadow=`0 0 0 3px ${T.goldDim}`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.boxShadow="none"; }}
+              >
+                <div style={{ textAlign:"left" }}>
+                  <p style={{ color:T.text, fontSize:12, fontWeight:700, margin:0 }}>
                     {selectedCustomer ? selectedCustomer.customer_name : "Guest Customer"}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: C.faint }}>
-                    {selectedCustomer ? selectedCustomer.customer_email || selectedCustomer.customer_phone || "No contact" : "Walk-in Customer"}
+                  <p style={{ color:T.faint, fontSize:10, marginTop:2 }}>
+                    {selectedCustomer
+                      ? selectedCustomer.customer_email || selectedCustomer.customer_phone || "No contact"
+                      : "Walk-in Customer"}
                   </p>
                 </div>
-                <span style={{ color: C.faint, fontSize: 12 }}>✎</span>
+                <span style={{ color:T.muted, fontSize:13 }}>✎</span>
               </button>
             </div>
           </div>
 
-          {/* checkout */}
-          <div className="px-5 pb-5 pt-3 space-y-2" style={{ borderTop: `1px solid ${C.border}` }}>
+          {/* Checkout */}
+          <div style={{ padding:"12px 20px 20px", borderTop:`1px solid ${T.border}` }}>
             <button type="button" onClick={handleCheckout}
               disabled={loading || cartItems.length === 0}
-              className="w-full py-4 rounded-2xl font-extrabold text-sm tracking-wide transition-all"
-              style={loading || cartItems.length === 0
-                ? { background: C.alt, color: C.faint, cursor: "not-allowed", border: `1px solid ${C.border}` }
-                : { background: C.accent, color: "#fff", boxShadow: "0 4px 16px rgba(245,158,11,0.35)" }}>
+              style={{
+                width:"100%", padding:"15px 0", borderRadius:14, border:"none",
+                fontSize:13, fontWeight:900, letterSpacing:"0.02em",
+                cursor: loading || cartItems.length === 0 ? "not-allowed" : "pointer",
+                transition:"all 0.2s",
+                background: loading || cartItems.length === 0
+                  ? T.bg
+                  : "linear-gradient(135deg,#f5a028 0%,#f97316 100%)",
+                color: loading || cartItems.length === 0 ? T.faint : "#fff",
+                boxShadow: loading || cartItems.length === 0 ? "none" : T.shadowGold,
+              }}
+              onMouseEnter={(e) => { if (!loading && cartItems.length > 0) e.currentTarget.style.transform="translateY(-1px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform="none"; }}
+            >
               {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin inline-block">⊙</span> Generating PDF…
+                <span style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  <span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⊙</span>
+                  Generating PDF…
                 </span>
               ) : (
-                <span className="flex items-center justify-center gap-2">
-                  📄 Checkout & Download · ${grandTotal.toFixed(2)}
-                </span>
+                <span>📄 Checkout · ${grandTotal.toFixed(2)}</span>
               )}
             </button>
-            <div className="grid grid-cols-2 gap-2">
-              {[["⏸ Hold", () => showAlert("info", "Order held")], ["＋ New", () => showAlert("info", "New order")]].map(([label, fn]) => (
-                <button key={label} type="button" onClick={fn}
-                  className="py-2.5 rounded-xl text-xs font-bold transition-all"
-                  style={{ background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = C.border)}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = C.alt)}>{label}</button>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
+              {[["⏸ Hold",()=>showAlert("info","Order held")],["＋ New",()=>showAlert("info","New order")]].map(([label,fn])=>(
+                <button key={label} type="button" onClick={fn} style={{
+                  padding:"10px 0", borderRadius:10, border:`1.5px solid ${T.border}`,
+                  background:T.bg, color:T.muted, fontSize:11, fontWeight:700,
+                  cursor:"pointer", transition:"all 0.15s",
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background=T.surface; e.currentTarget.style.color=T.sub; e.currentTarget.style.boxShadow=T.shadowMd; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background=T.bg; e.currentTarget.style.color=T.muted; e.currentTarget.style.boxShadow="none"; }}
+                >{label}</button>
               ))}
             </div>
           </div>
         </aside>
 
-        {/* ══ Customer Modal ════════════════════════════════════════ */}
+        {/* ══════════════════════════════
+            CUSTOMER MODAL
+        ══════════════════════════════ */}
         {showCustomerModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50"
-            style={{ background: "rgba(15,23,42,0.4)", backdropFilter: "blur(6px)" }}
-            onClick={(e) => e.target === e.currentTarget && setShowCustomerModal(false)}>
-            <div className="w-96 rounded-2xl overflow-hidden"
-              style={{ background: C.panel, border: `1.5px solid ${C.border}`, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.border}` }}>
-                <h3 className="font-extrabold text-sm" style={{ color: C.text }}>Select Customer</h3>
-                <button type="button" onClick={() => setShowCustomerModal(false)}
-                  className="w-7 h-7 rounded-lg text-xs flex items-center justify-center"
-                  style={{ background: C.alt, color: C.muted, border: `1px solid ${C.border}` }}>✕</button>
+          <div
+            onClick={(e) => e.target === e.currentTarget && setShowCustomerModal(false)}
+            style={{
+              position:"fixed", inset:0, zIndex:999,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              background:"rgba(17,24,39,0.35)", backdropFilter:"blur(8px)",
+            }}
+          >
+            <div style={{
+              background:T.surface, border:`1px solid ${T.border}`,
+              borderRadius:20, width:380, overflow:"hidden",
+              boxShadow:"0 24px 80px rgba(0,0,0,0.18)",
+              animation:"fadeIn 0.2s ease both",
+            }}>
+              <div style={{
+                padding:"18px 20px", borderBottom:`1px solid ${T.border}`,
+                display:"flex", alignItems:"center", justifyContent:"space-between",
+              }}>
+                <p style={{ color:T.text, fontWeight:800, fontSize:14, margin:0 }}>Select Customer</p>
+                <button type="button" onClick={() => setShowCustomerModal(false)} style={{
+                  width:28, height:28, borderRadius:8, border:`1px solid ${T.border}`,
+                  background:T.bg, color:T.muted, cursor:"pointer", fontSize:13, fontWeight:700,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                }}>✕</button>
               </div>
-              <div className="p-4 space-y-3">
-                <input type="text" placeholder="Search customers…" value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)} autoFocus
-                  className="w-full text-sm px-4 py-2.5 rounded-xl transition-all" style={inp}
-                  onFocus={(e) => (e.target.style.borderColor = C.accentBdr)}
-                  onBlur={(e)  => (e.target.style.borderColor = C.border)} />
-                <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                  <button type="button" onClick={() => { setSelectedCustomer(null); setShowCustomerModal(false); }}
-                    className="w-full text-left px-4 py-3 rounded-xl transition-all"
-                    style={!selectedCustomer
-                      ? { background: C.accentBg, border: `1.5px solid ${C.accentBdr}`, color: C.accent }
-                      : { background: C.alt, border: `1px solid ${C.border}`, color: C.text }}>
-                    <p className="text-xs font-bold">👤 Guest Customer</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Walk-in Customer</p>
+
+              <div style={{ padding:16, display:"flex", flexDirection:"column", gap:10 }}>
+                <input
+                  type="text" placeholder="Search customers…"
+                  value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)}
+                  autoFocus
+                  style={{
+                    background:T.bg, border:`1.5px solid ${T.border}`, borderRadius:10,
+                    color:T.text, fontSize:13, fontWeight:500,
+                    padding:"10px 14px", outline:"none", transition:"border-color 0.2s",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor=T.gold)}
+                  onBlur={(e)  => (e.target.style.borderColor=T.border)}
+                />
+
+                <div style={{ maxHeight:280, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+                  <button type="button"
+                    onClick={() => { setSelectedCustomer(null); setShowCustomerModal(false); }}
+                    style={{
+                      background: !selectedCustomer ? T.goldDim : T.bg,
+                      border:     !selectedCustomer ? `1.5px solid ${T.goldBdr}` : `1px solid ${T.border}`,
+                      borderRadius:12, padding:"11px 14px", cursor:"pointer", textAlign:"left",
+                      transition:"all 0.15s",
+                    }}
+                  >
+                    <p style={{ color: !selectedCustomer ? T.gold : T.text, fontSize:12, fontWeight:700, margin:0 }}>
+                      👤 Guest Customer
+                    </p>
+                    <p style={{ color:T.faint, fontSize:10, marginTop:2 }}>Walk-in Customer</p>
                   </button>
+
                   {customers
                     .filter((c) => c.customer_name?.toLowerCase().includes(customerSearch.toLowerCase()))
-                    .map((c) => (
-                      <button key={c.customer_id} type="button"
-                        onClick={() => { setSelectedCustomer(c); setShowCustomerModal(false); }}
-                        className="w-full text-left px-4 py-3 rounded-xl transition-all"
-                        style={selectedCustomer?.customer_id === c.customer_id
-                          ? { background: C.accentBg, border: `1.5px solid ${C.accentBdr}`, color: C.accent }
-                          : { background: C.alt, border: `1px solid ${C.border}`, color: C.text }}>
-                        <p className="text-xs font-bold">👤 {c.customer_name}</p>
-                        <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
-                          {c.customer_email || c.customer_phone || "No contact"}
-                        </p>
-                      </button>
-                    ))}
+                    .map((c) => {
+                      const sel = selectedCustomer?.customer_id === c.customer_id;
+                      return (
+                        <button key={c.customer_id} type="button"
+                          onClick={() => { setSelectedCustomer(c); setShowCustomerModal(false); }}
+                          style={{
+                            background: sel ? T.goldDim : T.bg,
+                            border:     sel ? `1.5px solid ${T.goldBdr}` : `1px solid ${T.border}`,
+                            borderRadius:12, padding:"11px 14px", cursor:"pointer", textAlign:"left",
+                            transition:"all 0.15s",
+                          }}
+                          onMouseEnter={(e) => { if (!sel) e.currentTarget.style.borderColor=T.gold; }}
+                          onMouseLeave={(e) => { if (!sel) e.currentTarget.style.borderColor=T.border; }}
+                        >
+                          <p style={{ color: sel ? T.gold : T.text, fontSize:12, fontWeight:700, margin:0 }}>
+                            👤 {c.customer_name}
+                          </p>
+                          <p style={{ color:T.faint, fontSize:10, marginTop:2 }}>
+                            {c.customer_email || c.customer_phone || "No contact"}
+                          </p>
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
             </div>

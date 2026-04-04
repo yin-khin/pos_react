@@ -540,7 +540,8 @@ const MiniStat = ({ label, value, color }) => (
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const Dashboard = () => {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userData = localStorage.getItem("user");
+  const user = userData && userData !== "undefined" ? JSON.parse(userData) : {};
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({

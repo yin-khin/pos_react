@@ -34,14 +34,14 @@ const MainPage = () => {
   const [user, setUser] = useState(() => {
     // Load user from localStorage on initial render
     const savedUser = localStorage.getItem("maison_user");
-    return savedUser ? JSON.parse(savedUser) : null;
+    return savedUser && savedUser !== "undefined" ? JSON.parse(savedUser) : null;
   });
 
   // Cart state
   const [cart, setCart] = useState(() => {
     // Load cart from localStorage on initial render
     const savedCart = localStorage.getItem("maison_cart");
-    return savedCart ? JSON.parse(savedCart) : [];
+    return savedCart && savedCart !== "undefined" ? JSON.parse(savedCart) : [];
   });
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);

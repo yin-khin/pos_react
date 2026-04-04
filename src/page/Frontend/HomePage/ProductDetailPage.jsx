@@ -29,13 +29,13 @@ const ProductDetailPage = () => {
   // User state
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("maison_user");
-    return savedUser ? JSON.parse(savedUser) : null;
+    return savedUser && savedUser !== "undefined" ? JSON.parse(savedUser) : null;
   });
 
   // Cart state
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem("maison_cart");
-    return savedCart ? JSON.parse(savedCart) : [];
+    return savedCart && savedCart !== "undefined" ? JSON.parse(savedCart) : [];
   });
 
   const [authModal, setAuthModal] = useState(null);

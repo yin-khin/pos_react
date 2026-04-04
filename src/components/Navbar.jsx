@@ -28,7 +28,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const userData = localStorage.getItem("user");
+  const user = userData && userData !== "undefined" ? JSON.parse(userData) : null;
   const isAuthenticated = !!localStorage.getItem("token");
   const pageLabel = PAGE_LABELS[location.pathname] ?? "Page";
 
